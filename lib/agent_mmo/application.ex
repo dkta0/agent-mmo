@@ -12,8 +12,9 @@ defmodule AgentMmo.Application do
       AgentMmo.Repo,
       {DNSCluster, query: Application.get_env(:agent_mmo, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: AgentMmo.PubSub},
-      # Start a worker by calling: AgentMmo.Worker.start_link(arg)
-      # {AgentMmo.Worker, arg},
+      {Registry, keys: :unique, name: AgentMmo.ZoneRegistry},
+      {AgentMmo.Player.PlayerSupervisor, []},
+      {AgentMmo.World.ZoneSupervisor, zone_id: "overworld_0_0"},
       # Start to serve requests, typically the last entry
       AgentMmoWeb.Endpoint
     ]
