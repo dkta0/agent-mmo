@@ -1,0 +1,330 @@
+id: missing_apprentice
+name: "The Missing Apprentice"
+description: "A young wizard's apprentice has gone missing. The barkeep saw him head north into the forest. Find him — and deal with whatever stands in the way."
+start_zone: tavern
+player_spawn: {x: 3, y: 3}
+
+# ─── Optimal path (15 actions) ─────────────────────────────────────────────
+# 1.  look                         (survey tavern)
+# 2.  speak npc_barkeep            (learn: went north)
+# 3.  reply 1                      (confirm clue_north flag)
+# 4.  move north                   (exit tavern → village_square)
+# 5.  look                         (survey village square)
+# 6.  speak npc_village_elder      (red herring — but agent should note: sends south)
+# 7.  reply 3                      (dismiss politely; no wrong-path penalty)
+# 8.  move north                   (exit village_square → forest_path)
+# 9.  speak npc_woodcutter         (confirms: points to clearing)
+# 10. reply 1                      (gain clue_clearing flag)
+# 11. move north                   (exit forest_path → forest_clearing)
+# 12. look                         (survey clearing; spot wolf + satchel)
+# 13. pickup item_satchel          (bonus +10)
+# 14. attack enemy_wolf            (defeat wolf; gain killed_wolf flag)
+# 15. move south                   (exit forest_clearing → forest_path
+#     → continue south back to tavern triggers quest completion)
+# Total: 15 actions → within optimal window → no per-step penalty
+#
+# Wrong path (south from village_square to mill): -10 penalty per wrong zone entered
+# Attacking wolf without examining: no extra penalty (wolf is the correct target)
+# ────────────────────────────────────────────────────────────────────────────
+
+zones:
+  tavern:
+    name: "The Rusty Flagon Tavern"
+    description: "A warm, smoky tavern. The smell of ale and hearth-smoke fills the air. A barkeep wipes down the counter behind the bar."
+    width: 8
+    height: 6
+    # Map legend: P=player spawn, B=Barkeep, D=door north
+    # ┌──────────────────┐
+    # │  . . . . . . . . │
+    # │  . B . . . . . . │  B = Barkeep
+    # │  . . . . . . . . │
+    # │  . . . P . . . . │  P = spawn
+    # │  . . . . . . . . │
+    # │  . . . [N] . . . │  [N] = exit to Village Square
+    # └──────────────────┘
+    exits:
+      - id: exit_north
+        position: {x: 3, y: 5}
+        label: "Village Square"
+        direction: north
+        destination_zone: village_square
+        destination_position: {x: 3, y: 0}
+    npcs:
+      - id: npc_barkeep
+        name: "Barkeep"
+        position: {x: 1, y: 1}
+        examine_text: "A stout woman with sharp eyes and a no-nonsense manner. She sees everything that happens in this tavern."
+        dialogue:
+          greeting: "Welcome to the Rusty Flagon. Seen some trouble tonight — that young apprentice of Mage Corvin stormed out an hour ago."
+          choices:
+            - id: 1
+              text: "Where did the apprentice go?"
+              response: "Headed north through the village and up the forest path, muttering about some errand. Didn't look right to me."
+              flags: [clue_north]
+            - id: 2
+              text: "What's north of here?"
+              response: "Village square, then the forest path. Good hunting up there, but the wolves have been bold lately."
+              flags: [clue_north]
+            - id: 3
+              text: "Any trouble lately?"
+              response: "Nothing beyond the usual. Old Aldric at the mill has been complaining about rats, but that's his problem."
+            - id: 4
+              text: "Never mind."
+              response: "Safe travels. Watch yourself out there."
+    items: []
+    enemies: []
+
+  village_square:
+    name: "Village Square"
+    description: "The open square at the heart of the village. A well stands in the center. The Village Elder sits on a bench near the notice board."
+    width: 10
+    height: 8
+    # Exits: north to Forest Path, south back to Tavern, south-west to Mill (red herring)
+    exits:
+      - id: exit_north
+        position: {x: 5, y: 0}
+        label: "Forest Path"
+        direction: north
+        destination_zone: forest_path
+        destination_position: {x: 5, y: 7}
+      - id: exit_south
+        position: {x: 3, y: 7}
+        label: "Rusty Flagon Tavern"
+        direction: south
+        destination_zone: tavern
+        destination_position: {x: 3, y: 4}
+      - id: exit_southwest
+        position: {x: 0, y: 6}
+        label: "Old Mill"
+        direction: southwest
+        destination_zone: old_mill
+        destination_position: {x: 5, y: 2}
+        wrong_path: true
+        wrong_path_penalty: 10
+    npcs:
+      - id: npc_village_elder
+        name: "Village Elder"
+        position: {x: 5, y: 4}
+        examine_text: "An elderly man with a long grey beard. He knows this village inside out, though his memory sometimes wanders."
+        dialogue:
+          greeting: "Ah, a traveler. Quiet night, mostly. Though I did hear something about Corvin's boy going off on some fool errand."
+          choices:
+            - id: 1
+              text: "Do you know where the apprentice went?"
+              response: "The apprentice? Hmm. I'd check the old mill to the south-west — the lad spent time there last harvest helping old Aldric."
+              flags: [red_herring_mill]
+              # NOTE: This is the red herring. The mill is a dead end. A reasoning
+              # agent should weigh this against the barkeep's clue_north.
+            - id: 2
+              text: "I heard he went north into the forest."
+              response: "North? Oh dear. The wolves have been prowling the clearing lately. If the boy went north he's in real danger."
+              flags: [clue_north, clue_wolf_danger]
+            - id: 3
+              text: "Thanks, I'll look around."
+              response: "Good luck, friend. Be careful in the forest — those wolves bite."
+    items: []
+    enemies: []
+
+  old_mill:
+    name: "Old Mill"
+    description: "A creaking watermill on the south edge of the village. The miller Aldric sweeps grain dust from the floor. There is no sign of the apprentice here."
+    width: 6
+    height: 5
+    # Dead-end zone. No quest targets here. Entering costs wrong_path_penalty.
+    exits:
+      - id: exit_northeast
+        position: {x: 5, y: 2}
+        label: "Village Square"
+        direction: northeast
+        destination_zone: village_square
+        destination_position: {x: 0, y: 6}
+    npcs:
+      - id: npc_miller
+        name: "Miller Aldric"
+        position: {x: 3, y: 2}
+        examine_text: "A flour-dusted old man who squints at you suspiciously."
+        dialogue:
+          greeting: "Can't you see I'm busy? What do you want?"
+          choices:
+            - id: 1
+              text: "Did the wizard's apprentice come this way?"
+              response: "That scrawny boy? Haven't seen him since last harvest. Try the forest — he loves wandering up there."
+              flags: [clue_north]
+            - id: 2
+              text: "Never mind."
+              response: "Then get out of my mill."
+    items: []
+    enemies: []
+
+  forest_path:
+    name: "Forest Path"
+    description: "A narrow dirt track winding between ancient oaks. Shadows shift between the trees. A woodcutter works nearby, splitting logs."
+    width: 8
+    height: 8
+    exits:
+      - id: exit_north
+        position: {x: 4, y: 0}
+        label: "Forest Clearing"
+        direction: north
+        destination_zone: forest_clearing
+        destination_position: {x: 4, y: 7}
+      - id: exit_south
+        position: {x: 5, y: 7}
+        label: "Village Square"
+        direction: south
+        destination_zone: village_square
+        destination_position: {x: 5, y: 0}
+    npcs:
+      - id: npc_woodcutter
+        name: "Woodcutter"
+        position: {x: 2, y: 4}
+        examine_text: "A broad-shouldered man with an axe over his shoulder. He looks like he knows these woods well."
+        dialogue:
+          greeting: "Hoy there. You look like you're searching for something."
+          choices:
+            - id: 1
+              text: "Have you seen a young apprentice pass through?"
+              response: "Aye — maybe twenty minutes ago. Pale kid in robes, ran right past me heading to the clearing up north. Heard a wolf howl right after."
+              flags: [clue_clearing, clue_wolf_danger]
+            - id: 2
+              text: "Is the clearing north safe?"
+              response: "Not tonight. Big grey wolf has been denning there. Hasn't attacked me — I carry an axe — but I wouldn't go unarmed."
+              flags: [clue_wolf_danger]
+            - id: 3
+              text: "Thanks, I'll head back."
+              response: "Watch yourself. That wolf is no ordinary beast."
+    items: []
+    enemies: []
+
+  forest_clearing:
+    name: "Forest Clearing"
+    description: "A moonlit clearing ringed by tall pines. The grass is trampled and a leather satchel lies near a fallen log. A large grey wolf paces at the far end of the clearing, growling. Huddled behind the log is a frightened young man in apprentice robes."
+    width: 10
+    height: 10
+    exits:
+      - id: exit_south
+        position: {x: 4, y: 9}
+        label: "Forest Path"
+        direction: south
+        destination_zone: forest_path
+        destination_position: {x: 4, y: 0}
+    npcs:
+      - id: npc_apprentice
+        name: "Apprentice Tomas"
+        position: {x: 5, y: 2}
+        examine_text: "A young man in blue apprentice robes, trembling behind a log. He looks unharmed but terrified."
+        dialogue:
+          greeting: "Please — help me! That wolf cornered me here. I can't get past it!"
+          choices:
+            - id: 1
+              text: "Stay behind the log. I'll deal with the wolf."
+              response: "Thank you! Be careful — it's fast. My satchel is over by the log if you need anything from it."
+            - id: 2
+              text: "Can you fight it yourself?"
+              response: "I've barely started my training! I can't even cast a spark reliably yet. Please — just kill it!"
+            - id: 3
+              text: "I'll distract it while you run."
+              response: "I tried that. It just follows me. You have to defeat it — there's no other way out."
+    items:
+      - id: item_satchel
+        name: "Apprentice's Satchel"
+        position: {x: 3, y: 3}
+        description: "A worn leather satchel with the initials 'T.C.' burnt into the flap. Inside: a vial of healing salve (+15 HP) and a tattered note that reads 'Errand for Master Corvin — collect moonmoss from the clearing. Back by midnight.'"
+        pickup: true
+        on_pickup:
+          flags: [has_satchel]
+    enemies:
+      - id: enemy_wolf
+        name: "Grey Wolf"
+        position: {x: 5, y: 7}
+        health: 40
+        max_health: 40
+        attack: 8
+        examine_text: "A large grey wolf with glowing amber eyes. It bares its teeth, hackles raised. This is what trapped the apprentice."
+        is_quest_target: true
+        on_death:
+          flags: [killed_wolf]
+          event: "The wolf collapses with a final howl. Tomas scrambles to his feet, shaking but unhurt."
+
+# ─── Quest Definition ────────────────────────────────────────────────────────
+quest:
+  id: find_apprentice
+  name: "Find the Missing Apprentice"
+  description: "Mage Corvin's apprentice Tomas went into the forest alone and hasn't returned. Find him and make sure he gets home safely."
+  giver: npc_barkeep
+  objectives:
+    - id: learn_direction
+      description: "Find out where the apprentice went"
+      flags_required: [clue_north]
+      optional: false
+    - id: reach_clearing
+      description: "Reach the forest clearing"
+      flags_required: [clue_clearing]
+      optional: false
+    - id: defeat_wolf
+      description: "Defeat the wolf threatening the apprentice"
+      flags_required: [killed_wolf]
+      optional: false
+    - id: collect_satchel
+      description: "Recover the apprentice's satchel"
+      flags_required: [has_satchel]
+      optional: true  # bonus objective
+  completion_trigger:
+    zone: tavern
+    flags_required: [killed_wolf]
+    # Returning to the tavern after defeating the wolf completes the quest.
+    # Tomas follows the player out of the forest and returns to the tavern on his own.
+  completion_event: "You return to the Rusty Flagon. Word spreads quickly — the apprentice is safe. The barkeep presses a coin purse into your hand. 'Corvin will want to know his boy is home. Well done.'"
+
+# ─── Scoring Rubric ─────────────────────────────────────────────────────────
+scoring:
+  base: 100
+
+  # Step penalty: -3 per action over the 15-action optimal path
+  optimal_steps: 15
+  per_step_over_optimal: -3
+
+  # Wrong-path penalty: entering old_mill
+  wrong_path_penalty: -10
+  # Note: the wrong-path penalty fires once per wrong zone entered,
+  # not per step taken in that zone.
+
+  # Bonus for recovering the apprentice's satchel
+  satchel_bonus: 10
+  satchel_flag: has_satchel
+
+  # Speed bonus: completing in ≤15 steps (the optimal path)
+  speed_bonus:
+    threshold_steps: 15
+    bonus: 0  # already captured by zero step-penalty; no separate speed bonus
+
+  # Red-herring reasoning quality metrics (informational, not point-deducting beyond wrong_path)
+  reasoning_flags:
+    - flag: red_herring_mill
+      label: "Followed mill red herring"
+      note: "Agent chose elder's hint over barkeep's; penalised via wrong_path_penalty if they entered old_mill"
+    - flag: clue_north
+      label: "Acquired directional clue"
+    - flag: clue_clearing
+      label: "Confirmed clearing destination"
+    - flag: clue_wolf_danger
+      label: "Learned wolf is present"
+
+  # Maximum achievable score (optimal path + satchel bonus)
+  max_score: 110  # base 100 + satchel +10, zero step penalty, no wrong paths
+
+# ─── Benchmark Metadata ─────────────────────────────────────────────────────
+benchmark:
+  difficulty: easy
+  optimal_action_count: 15
+  zones_in_optimal_path: [tavern, village_square, forest_path, forest_clearing, forest_path, village_square, tavern]
+  red_herrings:
+    - id: rh_mill
+      description: "Village Elder sends player south-west to old mill. The correct path is north."
+      penalty_if_taken: 10
+  key_reasoning_steps:
+    - "Barkeep clue (went north) outweighs Elder's clue (went south-west) — recency + specificity"
+    - "Woodcutter confirms clearing and introduces wolf — agent must decide to fight, not flee"
+    - "Examining satchel before attacking wolf is suboptimal but not penalised — order-independent"
+    - "Returning to tavern (not just exiting clearing) is required for quest completion"
+  tags: [combat, dialogue, navigation, red_herring, optional_objective]
