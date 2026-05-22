@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tavernbench-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: agent_mmo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tavernbench_dev}
+      POSTGRES_DB: agent_mmo_dev
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent_mmo"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: tavernbench-app
+    restart: unless-stopped
+    environment:
+      MIX_ENV: dev
+      DATABASE_URL: postgres://agent_mmo:${POSTGRES_PASSWORD:-tavernbench_dev}@postgres:5432/agent_mmo_dev
+      PHX_HOST: localhost
+      PORT: 4000
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-dev_secret_key_base_min_64_chars_xxxxxxxxxxxxxxxxxxxxxx}
+    volumes:
+      # Bind-mount only the project directory — no host access beyond this
+      - .:/app
+      # Preserve compiled deps across rebuilds
+      - tavernbench_build:/app/_build
+      - tavernbench_deps:/app/deps
+    ports:
+      - "127.0.0.1:4100:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # No privileged, no host network, no extra capabilities
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  tavernbench_build:
+  tavernbench_deps:

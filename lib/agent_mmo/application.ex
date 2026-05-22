@@ -7,6 +7,8 @@ defmodule AgentMmo.Application do
 
   @impl true
   def start(_type, _args) do
+    AgentMmo.Auth.init_cache()
+
     children = [
       AgentMmoWeb.Telemetry,
       AgentMmo.Repo,
@@ -14,6 +16,8 @@ defmodule AgentMmo.Application do
       {Phoenix.PubSub, name: AgentMmo.PubSub},
       {Registry, keys: :unique, name: AgentMmo.ZoneRegistry},
       {AgentMmo.Player.PlayerSupervisor, []},
+      {DynamicSupervisor, name: AgentMmo.ZoneDynamicSup, strategy: :one_for_one},
+      {AgentMmo.World.ScenarioLoader, []},
       {AgentMmo.World.ZoneSupervisor, zone_id: "overworld_0_0"},
       # Start to serve requests, typically the last entry
       AgentMmoWeb.Endpoint

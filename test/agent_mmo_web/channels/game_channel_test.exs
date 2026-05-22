@@ -2,6 +2,7 @@ defmodule AgentMmoWeb.GameChannelTest do
   use AgentMmoWeb.ChannelCase
 
   alias AgentMmoWeb.{GameChannel, UserSocket}
+  alias AgentMmo.Auth
 
   setup do
     zone_id = "test_zone_channel_#{System.unique_integer([:positive])}"
@@ -9,7 +10,10 @@ defmodule AgentMmoWeb.GameChannelTest do
     # Start a ZoneSupervisor for the test zone
     {:ok, _} = start_supervised({AgentMmo.World.ZoneSupervisor, zone_id: zone_id})
 
-    {:ok, socket} = connect(UserSocket, %{})
+    # Issue a real API key for the test
+    {:ok, {plaintext, _api_key}} = Auth.issue_key(%{"agent_name" => "test-agent", "owner" => "test@example.com"})
+
+    {:ok, socket} = connect(UserSocket, %{"api_key" => plaintext})
     {:ok, socket: socket, zone_id: zone_id}
   end
 
@@ -19,7 +23,9 @@ defmodule AgentMmoWeb.GameChannelTest do
         "protocol_version" => "1.0"
       })
 
-    assert reply == %{status: "ok", protocol_version: "1.0"}
+    assert reply.status == "ok"
+    assert reply.protocol_version == "1.0"
+    assert Map.has_key?(reply, :player_id)
   end
 
   test "join with wrong protocol_version returns error", %{socket: socket, zone_id: zone_id} do

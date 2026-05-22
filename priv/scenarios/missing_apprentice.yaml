@@ -44,11 +44,11 @@ zones:
     # └──────────────────┘
     exits:
       - id: exit_north
-        position: {x: 3, y: 5}
+        position: {x: 3, y: 0}
         label: "Village Square"
         direction: north
         destination_zone: village_square
-        destination_position: {x: 3, y: 0}
+        destination_position: {x: 3, y: 6}
     npcs:
       - id: npc_barkeep
         name: "Barkeep"
@@ -82,23 +82,23 @@ zones:
     # Exits: north to Forest Path, south back to Tavern, south-west to Mill (red herring)
     exits:
       - id: exit_north
-        position: {x: 5, y: 0}
+        position: {x: 3, y: 0}
         label: "Forest Path"
         direction: north
         destination_zone: forest_path
-        destination_position: {x: 5, y: 7}
+        destination_position: {x: 3, y: 6}
       - id: exit_south
         position: {x: 3, y: 7}
         label: "Rusty Flagon Tavern"
         direction: south
         destination_zone: tavern
-        destination_position: {x: 3, y: 4}
+        destination_position: {x: 3, y: 1}
       - id: exit_southwest
-        position: {x: 0, y: 6}
+        position: {x: 0, y: 7}
         label: "Old Mill"
         direction: southwest
         destination_zone: old_mill
-        destination_position: {x: 5, y: 2}
+        destination_position: {x: 3, y: 2}
         wrong_path: true
         wrong_path_penalty: 10
     npcs:
@@ -133,11 +133,11 @@ zones:
     # Dead-end zone. No quest targets here. Entering costs wrong_path_penalty.
     exits:
       - id: exit_northeast
-        position: {x: 5, y: 2}
+        position: {x: 3, y: 2}
         label: "Village Square"
         direction: northeast
         destination_zone: village_square
-        destination_position: {x: 0, y: 6}
+        destination_position: {x: 3, y: 5}
     npcs:
       - id: npc_miller
         name: "Miller Aldric"
@@ -163,17 +163,17 @@ zones:
     height: 8
     exits:
       - id: exit_north
-        position: {x: 4, y: 0}
+        position: {x: 3, y: 0}
         label: "Forest Clearing"
         direction: north
         destination_zone: forest_clearing
-        destination_position: {x: 4, y: 7}
+        destination_position: {x: 3, y: 6}
       - id: exit_south
-        position: {x: 5, y: 7}
+        position: {x: 3, y: 7}
         label: "Village Square"
         direction: south
         destination_zone: village_square
-        destination_position: {x: 5, y: 0}
+        destination_position: {x: 3, y: 1}
     npcs:
       - id: npc_woodcutter
         name: "Woodcutter"
@@ -203,11 +203,11 @@ zones:
     height: 10
     exits:
       - id: exit_south
-        position: {x: 4, y: 9}
+        position: {x: 3, y: 9}
         label: "Forest Path"
         direction: south
         destination_zone: forest_path
-        destination_position: {x: 4, y: 0}
+        destination_position: {x: 3, y: 1}
     npcs:
       - id: npc_apprentice
         name: "Apprentice Tomas"

@@ -9,7 +9,8 @@ import Config
 
 config :agent_mmo,
   ecto_repos: [AgentMmo.Repo],
-  generators: [timestamp_type: :utc_datetime]
+  generators: [timestamp_type: :utc_datetime],
+  valid_api_keys: ["dev-key", "test-key"]
 
 # Configures the endpoint
 config :agent_mmo, AgentMmoWeb.Endpoint,

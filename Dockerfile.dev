@@ -1,0 +1,27 @@
+FROM elixir:1.16-otp-26-alpine
+
+# Install build deps
+RUN apk add --no-cache \
+    build-base \
+    git \
+    inotify-tools \
+    postgresql-client \
+    nodejs \
+    npm \
+    curl
+
+# Install hex + rebar
+RUN mix local.hex --force && \
+    mix local.rebar --force
+
+WORKDIR /app
+
+# Cache deps layer
+COPY mix.exs mix.lock ./
+RUN mix deps.get && mix deps.compile
+
+COPY . .
+
+EXPOSE 4000
+
+CMD ["mix", "phx.server"]

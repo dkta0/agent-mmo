@@ -1,17 +1,20 @@
 import Config
 
 # Configure your database
-#
-# The MIX_TEST_PARTITION environment variable can be used
-# to provide built-in test partitioning in CI environment.
-# Run `mix help test` for more information.
-config :agent_mmo, AgentMmo.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "agent_mmo_test#{System.get_env("MIX_TEST_PARTITION")}",
-  pool: Ecto.Adapters.SQL.Sandbox,
-  pool_size: System.schedulers_online() * 2
+if database_url = System.get_env("DATABASE_URL") do
+  config :agent_mmo, AgentMmo.Repo,
+    url: database_url,
+    pool: Ecto.Adapters.SQL.Sandbox,
+    pool_size: System.schedulers_online() * 2
+else
+  config :agent_mmo, AgentMmo.Repo,
+    username: "agent_mmo",
+    password: "tavernbench_dev",
+    hostname: System.get_env("PGHOST", "postgres"),
+    database: "agent_mmo_test#{System.get_env("MIX_TEST_PARTITION")}",
+    pool: Ecto.Adapters.SQL.Sandbox,
+    pool_size: System.schedulers_online() * 2
+end
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.

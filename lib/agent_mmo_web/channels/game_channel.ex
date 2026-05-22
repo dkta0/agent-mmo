@@ -4,7 +4,7 @@ defmodule AgentMmoWeb.GameChannel do
   use Phoenix.Channel
 
   alias AgentMmo.Player.PlayerSupervisor
-  alias AgentMmo.World.ZoneTicker
+  alias AgentMmo.World.{ZoneTicker, ZoneSupervisor}
 
   @supported_protocol "1.0"
   @valid_directions ~w(north south east west northeast northwest southeast southwest)
@@ -16,6 +16,8 @@ defmodule AgentMmoWeb.GameChannel do
     else
       player_id = socket.id || :crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)
 
+      ensure_zone_started(zone_id)
+
       PlayerSupervisor.start_player(
         player_id: player_id,
         zone_id: zone_id,
@@ -23,13 +25,21 @@ defmodule AgentMmoWeb.GameChannel do
       )
 
       Phoenix.PubSub.subscribe(AgentMmo.PubSub, "zone:#{zone_id}")
+      Phoenix.PubSub.subscribe(AgentMmo.PubSub, "player:#{player_id}")
 
       socket =
         socket
         |> assign(:zone_id, zone_id)
         |> assign(:player_id, player_id)
+        |> assign(:last_npc_id, nil)
+        |> assign(:connected_at, System.monotonic_time(:millisecond))
 
-      {:ok, %{status: "ok", protocol_version: @supported_protocol}, socket}
+      initial_score = case AgentMmo.Player.PlayerSession.get_state(player_id) do
+        {:ok, ps} -> Map.get(ps, :score, 0)
+        _ -> 0
+      end
+
+      {:ok, %{status: "ok", protocol_version: @supported_protocol, player_id: player_id, score: initial_score}, socket}
     end
   end
 
@@ -37,10 +47,12 @@ defmodule AgentMmoWeb.GameChannel do
     {:error, %{reason: "missing_protocol_version"}}
   end
 
+  # ---- Action handlers ----
+
   @impl true
   def handle_in("action:move", %{"direction" => direction} = payload, socket) do
     if direction in @valid_directions do
-      ZoneTicker.enqueue_action(socket.assigns.zone_id, socket.assigns.player_id, payload)
+      ZoneTicker.enqueue_action(socket.assigns.zone_id, socket.assigns.player_id, Map.put(payload, "action", "move"))
       {:reply, {:ok, %{acked: true}}, socket}
     else
       {:reply, {:error, %{code: "INVALID_DIRECTION"}}, socket}
@@ -51,9 +63,140 @@ defmodule AgentMmoWeb.GameChannel do
     {:reply, {:error, %{code: "MISSING_DIRECTION"}}, socket}
   end
 
+  def handle_in("action:enter", %{"target" => _} = payload, socket) do
+    enqueue(socket, Map.put(payload, "action", "enter"))
+    {:reply, {:ok, %{acked: true}}, socket}
+  end
+
+  def handle_in("action:enter", _payload, socket) do
+    {:reply, {:error, %{code: "MISSING_TARGET"}}, socket}
+  end
+
+  def handle_in("action:speak", %{"target" => _} = payload, socket) do
+    enqueue(socket, Map.put(payload, "action", "speak"))
+    {:reply, {:ok, %{acked: true}}, socket}
+  end
+
+  def handle_in("action:speak", _payload, socket) do
+    {:reply, {:error, %{code: "MISSING_TARGET"}}, socket}
+  end
+
+  def handle_in("action:reply", %{"choice" => choice_id} = payload, socket) do
+    npc_id = socket.assigns[:last_npc_id]
+    action = payload |> Map.put("action", "reply") |> Map.put("npc_id", npc_id)
+    enqueue(socket, action)
+    {:reply, {:ok, %{acked: true}}, socket}
+  end
+
+  def handle_in("action:reply", _payload, socket) do
+    {:reply, {:error, %{code: "MISSING_CHOICE"}}, socket}
+  end
+
+  def handle_in("action:examine", %{"target" => _} = payload, socket) do
+    enqueue(socket, Map.put(payload, "action", "examine"))
+    {:reply, {:ok, %{acked: true}}, socket}
+  end
+
+  def handle_in("action:examine", _payload, socket) do
+    {:reply, {:error, %{code: "MISSING_TARGET"}}, socket}
+  end
+
+  def handle_in("action:pickup", %{"target" => _} = payload, socket) do
+    enqueue(socket, Map.put(payload, "action", "pickup"))
+    {:reply, {:ok, %{acked: true}}, socket}
+  end
+
+  def handle_in("action:pickup", _payload, socket) do
+    {:reply, {:error, %{code: "MISSING_TARGET"}}, socket}
+  end
+
+  def handle_in("action:drop", %{"item" => item} = payload, socket) do
+    enqueue(socket, payload |> Map.put("action", "drop") |> Map.put("target", item))
+    {:reply, {:ok, %{acked: true}}, socket}
+  end
+
+  def handle_in("action:drop", _payload, socket) do
+    {:reply, {:error, %{code: "MISSING_ITEM"}}, socket}
+  end
+
+  def handle_in("action:use", %{"item" => _} = payload, socket) do
+    enqueue(socket, Map.put(payload, "action", "use"))
+    {:reply, {:ok, %{acked: true}}, socket}
+  end
+
+  def handle_in("action:use", _payload, socket) do
+    {:reply, {:error, %{code: "MISSING_ITEM"}}, socket}
+  end
+
+  def handle_in("action:attack", %{"target" => _} = payload, socket) do
+    enqueue(socket, Map.put(payload, "action", "attack"))
+    {:reply, {:ok, %{acked: true}}, socket}
+  end
+
+  def handle_in("action:attack", _payload, socket) do
+    {:reply, {:error, %{code: "MISSING_TARGET"}}, socket}
+  end
+
+  def handle_in("action:flee", payload, socket) do
+    enqueue(socket, Map.put(payload, "action", "flee"))
+    {:reply, {:ok, %{acked: true}}, socket}
+  end
+
+  def handle_in("action:inventory", payload, socket) do
+    enqueue(socket, Map.put(payload, "action", "inventory"))
+    {:reply, {:ok, %{acked: true}}, socket}
+  end
+
+  def handle_in("action:quests", payload, socket) do
+    enqueue(socket, Map.put(payload, "action", "quests"))
+    {:reply, {:ok, %{acked: true}}, socket}
+  end
+
+  def handle_in("action:look", payload, socket) do
+    enqueue(socket, Map.put(payload, "action", "look"))
+    {:reply, {:ok, %{acked: true}}, socket}
+  end
+
+  def handle_in("action:wait", payload, socket) do
+    enqueue(socket, Map.put(payload, "action", "wait"))
+    {:reply, {:ok, %{acked: true}}, socket}
+  end
+
+  # ---- PubSub message handlers ----
+
   @impl true
   def handle_info({:tick_broadcast, payload}, socket) do
     push(socket, "tick", payload)
+    {:noreply, socket}
+  end
+
+  def handle_info({:player_event, %{type: "dialogue"} = payload}, socket) do
+    socket = assign(socket, :last_npc_id, payload.npc)
+    push(socket, "dialogue", payload)
+    {:noreply, socket}
+  end
+
+  def handle_info({:player_event, %{type: "zone_entered"} = payload}, socket) do
+    Phoenix.PubSub.unsubscribe(AgentMmo.PubSub, "zone:#{socket.assigns.zone_id}")
+    new_zone_id = payload.to_zone
+    Phoenix.PubSub.subscribe(AgentMmo.PubSub, "zone:#{new_zone_id}")
+    socket = assign(socket, :zone_id, new_zone_id)
+    push(socket, "event", payload)
+    {:noreply, socket}
+  end
+
+  def handle_info({:player_event, payload}, socket) do
+    if Map.get(payload, :type) == "quest_complete" do
+      persist_benchmark_run(socket, payload)
+      push(socket, "quest_complete", payload)
+    else
+      push(socket, "event", payload)
+    end
+    {:noreply, socket}
+  end
+
+  def handle_info({:zone_event, payload}, socket) do
+    push(socket, "event", payload)
     {:noreply, socket}
   end
 
@@ -64,5 +207,48 @@ defmodule AgentMmoWeb.GameChannel do
     end
 
     :ok
+  end
+
+  defp enqueue(socket, action) do
+    ZoneTicker.enqueue_action(socket.assigns.zone_id, socket.assigns.player_id, action)
+  end
+
+  defp persist_benchmark_run(socket, payload) do
+    api_key_id = socket.assigns[:api_key_id]
+
+    if api_key_id do
+      scenario    = to_string(Map.get(payload, :quest_id, "unknown"))
+      score       = Map.get(payload, :final_score, 0)
+      steps       = Map.get(payload, :steps_taken, 0)
+      duration_ms = System.monotonic_time(:millisecond) - socket.assigns.connected_at
+
+      case AgentMmo.Leaderboard.record_run(api_key_id, scenario, score, steps, duration_ms) do
+        {:ok, _run} ->
+          Phoenix.PubSub.broadcast(AgentMmo.PubSub, "leaderboard:#{scenario}", {:leaderboard_updated, scenario})
+        {:error, reason} ->
+          require Logger
+          Logger.warning("Failed to persist benchmark run: #{inspect(reason)}")
+      end
+    end
+  end
+
+  defp ensure_zone_started(zone_id) do
+    case Registry.lookup(AgentMmo.ZoneRegistry, {:zone_sup, zone_id}) do
+      [{_pid, _}] ->
+        :ok
+      [] ->
+        case DynamicSupervisor.start_child(
+               AgentMmo.ZoneDynamicSup,
+               {ZoneSupervisor, zone_id: zone_id}
+             ) do
+          {:ok, _} ->
+            AgentMmo.World.ScenarioLoader.seed_zone_into(zone_id)
+            :ok
+          {:error, {:already_started, _}} -> :ok
+          {:error, reason} ->
+            require Logger
+            Logger.warning("Could not start zone #{zone_id}: #{inspect(reason)}")
+        end
+    end
   end
 end
