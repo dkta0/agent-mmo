@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <title>TavernBench</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: { extend: { fontFamily: { mono: ['ui-monospace', 'SFMono-Regular', 'monospace'] } } }
+      }
+    </script>
+    <script src="https://unpkg.com/phoenix@1.7.21/priv/static/phoenix.js"></script>
+    <script src="https://unpkg.com/phoenix_live_view@0.20.17/priv/static/phoenix_live_view.js"></script>
+    <script defer>
+      (function() {
+        const { LiveSocket } = window.PhoenixLiveView;
+        const { Socket } = window.Phoenix;
+        const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
+        const liveSocket = new LiveSocket("/live", Socket, {
+          params: { _csrf_token: csrfToken }
+        });
+        liveSocket.connect();
+        window.liveSocket = liveSocket;
+      })();
+    </script>
+  </head>
+  <body class="bg-gray-950 text-gray-100 min-h-screen">
+    <%= @inner_content %>
+  </body>
+</html>

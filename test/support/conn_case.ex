@@ -35,4 +35,13 @@ defmodule AgentMmoWeb.ConnCase do
     AgentMmo.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
+
+  @doc "Logs in a user by setting the session token on the connection."
+  def log_in_user(conn, user) do
+    token = AgentMmo.Accounts.create_session_token(user)
+
+    conn
+    |> Phoenix.ConnTest.init_test_session(%{})
+    |> Plug.Conn.put_session(:user_token, token)
+  end
 end
