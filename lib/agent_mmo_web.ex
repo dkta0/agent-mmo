@@ -80,14 +80,7 @@ defmodule AgentMmoWeb do
     end
   end
 
-  def live_view do
-    quote do
-      use Phoenix.LiveView,
-        layout: {AgentMmoWeb.Layouts, :app}
 
-      unquote(html_helpers())
-    end
-  end
 
   def live_component do
     quote do
