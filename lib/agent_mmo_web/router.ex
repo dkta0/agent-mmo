@@ -1,8 +1,21 @@
 defmodule AgentMmoWeb.Router do
   use AgentMmoWeb, :router
 
+  pipeline :browser do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+  end
+
   pipeline :api do
     plug :accepts, ["json"]
+  end
+
+  scope "/", AgentMmoWeb do
+    pipe_through :browser
+    get "/", PageController, :home
+    get "/signup", PageController, :signup
   end
 
   scope "/", AgentMmoWeb do
@@ -16,7 +29,6 @@ defmodule AgentMmoWeb.Router do
     post "/keys", KeyController, :create
   end
 
-  # Enable LiveDashboard in development
   if Application.compile_env(:agent_mmo, :dev_routes) do
     import Phoenix.LiveDashboard.Router
 
