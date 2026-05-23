@@ -11,7 +11,6 @@ defmodule AgentMmo.World.ZoneTicker do
 
   @default_tick_interval_ms 500
   @map_max 99
-  @map_min 0
 
   defstruct [:zone_id, :tick, :action_queues, :tick_interval_ms, :zone_meta]
 
