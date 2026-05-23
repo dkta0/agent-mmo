@@ -39,6 +39,14 @@ defmodule AgentMmoWeb.GameChannel do
         _ -> 0
       end
 
+      # Notify spectator tracker that a run has started
+      agent_name = socket.assigns[:api_key_id] || player_id
+      AgentMmo.SpectateTracker.run_started(player_id, %{
+        agent_name: agent_name,
+        scenario: "benchmark",
+        zone_id: zone_id
+      })
+
       {:ok, %{status: "ok", protocol_version: @supported_protocol, player_id: player_id, score: initial_score}, socket}
     end
   end
@@ -81,7 +89,7 @@ defmodule AgentMmoWeb.GameChannel do
     {:reply, {:error, %{code: "MISSING_TARGET"}}, socket}
   end
 
-  def handle_in("action:reply", %{"choice" => choice_id} = payload, socket) do
+  def handle_in("action:reply", %{"choice" => _choice_id} = payload, socket) do
     npc_id = socket.assigns[:last_npc_id]
     action = payload |> Map.put("action", "reply") |> Map.put("npc_id", npc_id)
     enqueue(socket, action)
@@ -192,12 +200,20 @@ defmodule AgentMmoWeb.GameChannel do
               end
             end)
 
-          payload
-          |> Map.put(:position, position)
-          |> Map.put(:inventory, inventory)
-          |> Map.put(:quest_log, quest_log)
-          |> Map.put(:score, ps.score)
-          |> Map.put(:steps, ps.steps)
+          enriched_run =
+            payload
+            |> Map.put(:position, position)
+            |> Map.put(:inventory, inventory)
+            |> Map.put(:quest_log, quest_log)
+            |> Map.put(:score, ps.score)
+            |> Map.put(:steps, ps.steps)
+
+          # Push score/steps update to spectator tracker
+          Phoenix.PubSub.broadcast(AgentMmo.PubSub, "tracker:runs", {
+            :tick_update, player_id, ps.score, ps.steps, socket.assigns.zone_id
+          })
+
+          enriched_run
 
         _ ->
           payload
@@ -246,6 +262,7 @@ defmodule AgentMmoWeb.GameChannel do
   def terminate(_reason, socket) do
     if player_id = socket.assigns[:player_id] do
       PlayerSupervisor.stop_player(player_id)
+      AgentMmo.SpectateTracker.run_ended(player_id)
     end
 
     :ok
