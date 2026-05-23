@@ -30,7 +30,8 @@ defmodule AgentMmo.Auth do
         key_hash: key_hash,
         key_prefix: key_prefix,
         agent_name: attrs["agent_name"],
-        owner: attrs["owner"]
+        owner: attrs["owner"],
+        user_id: attrs["user_id"]
       })
 
     case Repo.insert(changeset) do
@@ -42,6 +43,23 @@ defmodule AgentMmo.Auth do
   def issue_key(_attrs) do
     changeset = ApiKey.changeset(%ApiKey{}, %{})
     {:error, changeset}
+  end
+
+  @doc "List active (non-revoked) API keys for a user, newest first."
+  def list_api_keys_for_user(user_id) do
+    import Ecto.Query
+    Repo.all(from k in ApiKey, where: k.user_id == ^user_id and is_nil(k.revoked_at), order_by: [desc: k.inserted_at])
+  end
+
+  @doc "Revoke an API key by id."
+  def revoke_key(api_key_id) do
+    case Repo.get(ApiKey, api_key_id) do
+      nil -> {:error, :not_found}
+      key ->
+        key
+        |> Ecto.Changeset.change(revoked_at: DateTime.utc_now() |> DateTime.truncate(:second))
+        |> Repo.update()
+    end
   end
 
   @doc """
