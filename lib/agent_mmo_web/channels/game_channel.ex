@@ -166,7 +166,49 @@ defmodule AgentMmoWeb.GameChannel do
 
   @impl true
   def handle_info({:tick_broadcast, payload}, socket) do
-    push(socket, "tick", payload)
+    player_id = socket.assigns[:player_id]
+
+    enriched =
+      case AgentMmo.Player.PlayerSession.get_state(player_id) do
+        {:ok, ps} ->
+          # Find this player's position from the entities list
+          player_entity_id = "player_#{player_id}"
+
+          position =
+            Enum.find_value(payload.entities, %{x: 0, y: 0}, fn e ->
+              if e.id == player_entity_id, do: e.position, else: nil
+            end)
+
+          inventory =
+            Enum.map(ps.inventory, fn item_id ->
+              %{id: item_id, name: item_id, quantity: 1}
+            end)
+
+          quest_log =
+            Enum.map(ps.quests, fn quest ->
+              case quest do
+                %{} -> quest
+                id when is_binary(id) -> %{id: id, name: id, description: "", objectives: [], complete: false}
+              end
+            end)
+
+          payload
+          |> Map.put(:position, position)
+          |> Map.put(:inventory, inventory)
+          |> Map.put(:quest_log, quest_log)
+          |> Map.put(:score, ps.score)
+          |> Map.put(:steps, ps.steps)
+
+        _ ->
+          payload
+          |> Map.put_new(:position, %{x: 0, y: 0})
+          |> Map.put_new(:inventory, [])
+          |> Map.put_new(:quest_log, [])
+          |> Map.put_new(:score, 0)
+          |> Map.put_new(:steps, 0)
+      end
+
+    push(socket, "tick", enriched)
     {:noreply, socket}
   end
 

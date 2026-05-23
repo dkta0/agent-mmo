@@ -17,6 +17,8 @@ defmodule AgentMmoWeb.GameChannelTest do
     {:ok, socket: socket, zone_id: zone_id}
   end
 
+  # ---- Join handshake (protocol version negotiation) ----
+
   test "join with valid protocol_version returns ok", %{socket: socket, zone_id: zone_id} do
     {:ok, reply, _socket} =
       subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
@@ -40,6 +42,8 @@ defmodule AgentMmoWeb.GameChannelTest do
              subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{})
   end
 
+  # ---- action:move ----
+
   test "handle_in action:move returns acked", %{socket: socket, zone_id: zone_id} do
     {:ok, _, socket} =
       subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
@@ -49,6 +53,250 @@ defmodule AgentMmoWeb.GameChannelTest do
     ref = push(socket, "action:move", %{"direction" => "north", "seq" => 1})
     assert_reply ref, :ok, %{acked: true}
   end
+
+  test "action:move with invalid direction returns INVALID_DIRECTION", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    ref = push(socket, "action:move", %{"direction" => "diagonal-up", "seq" => 2})
+    assert_reply ref, :error, %{code: "INVALID_DIRECTION"}
+  end
+
+  test "action:move missing direction returns MISSING_DIRECTION", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    ref = push(socket, "action:move", %{"seq" => 3})
+    assert_reply ref, :error, %{code: "MISSING_DIRECTION"}
+  end
+
+  test "action:move accepts all 8 cardinal/intercardinal directions", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    directions = ~w(north south east west northeast northwest southeast southwest)
+
+    for direction <- directions do
+      ref = push(socket, "action:move", %{"direction" => direction})
+      assert_reply ref, :ok, %{acked: true}
+    end
+  end
+
+  # ---- action:speak ----
+
+  test "action:speak with target returns acked", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    ref = push(socket, "action:speak", %{"target" => "npc_barkeep"})
+    assert_reply ref, :ok, %{acked: true}
+  end
+
+  test "action:speak without target returns MISSING_TARGET", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    ref = push(socket, "action:speak", %{})
+    assert_reply ref, :error, %{code: "MISSING_TARGET"}
+  end
+
+  # ---- action:enter ----
+
+  test "action:enter with target returns acked", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    ref = push(socket, "action:enter", %{"target" => "exit_north"})
+    assert_reply ref, :ok, %{acked: true}
+  end
+
+  test "action:enter without target returns MISSING_TARGET", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    ref = push(socket, "action:enter", %{})
+    assert_reply ref, :error, %{code: "MISSING_TARGET"}
+  end
+
+  # ---- action:wait / action:look / action:inventory / action:quests / action:flee ----
+
+  test "action:wait returns acked", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    ref = push(socket, "action:wait", %{})
+    assert_reply ref, :ok, %{acked: true}
+  end
+
+  test "action:look returns acked", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    ref = push(socket, "action:look", %{})
+    assert_reply ref, :ok, %{acked: true}
+  end
+
+  test "action:inventory returns acked", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    ref = push(socket, "action:inventory", %{})
+    assert_reply ref, :ok, %{acked: true}
+  end
+
+  test "action:quests returns acked", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    ref = push(socket, "action:quests", %{})
+    assert_reply ref, :ok, %{acked: true}
+  end
+
+  test "action:flee returns acked", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    ref = push(socket, "action:flee", %{})
+    assert_reply ref, :ok, %{acked: true}
+  end
+
+  # ---- action:examine / pickup / drop / use / attack ----
+
+  test "action:examine with target returns acked", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    ref = push(socket, "action:examine", %{"target" => "npc_barkeep"})
+    assert_reply ref, :ok, %{acked: true}
+  end
+
+  test "action:examine without target returns MISSING_TARGET", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    ref = push(socket, "action:examine", %{})
+    assert_reply ref, :error, %{code: "MISSING_TARGET"}
+  end
+
+  test "action:pickup with target returns acked", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    ref = push(socket, "action:pickup", %{"target" => "item_key"})
+    assert_reply ref, :ok, %{acked: true}
+  end
+
+  test "action:pickup without target returns MISSING_TARGET", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    ref = push(socket, "action:pickup", %{})
+    assert_reply ref, :error, %{code: "MISSING_TARGET"}
+  end
+
+  test "action:drop with item returns acked", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    ref = push(socket, "action:drop", %{"item" => "health_potion"})
+    assert_reply ref, :ok, %{acked: true}
+  end
+
+  test "action:drop without item returns MISSING_ITEM", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    ref = push(socket, "action:drop", %{})
+    assert_reply ref, :error, %{code: "MISSING_ITEM"}
+  end
+
+  test "action:use with item returns acked", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    ref = push(socket, "action:use", %{"item" => "health_potion"})
+    assert_reply ref, :ok, %{acked: true}
+  end
+
+  test "action:use without item returns MISSING_ITEM", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    ref = push(socket, "action:use", %{})
+    assert_reply ref, :error, %{code: "MISSING_ITEM"}
+  end
+
+  test "action:attack with target returns acked", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    ref = push(socket, "action:attack", %{"target" => "enemy_thug"})
+    assert_reply ref, :ok, %{acked: true}
+  end
+
+  test "action:attack without target returns MISSING_TARGET", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    ref = push(socket, "action:attack", %{})
+    assert_reply ref, :error, %{code: "MISSING_TARGET"}
+  end
+
+  test "action:reply without choice returns MISSING_CHOICE", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    ref = push(socket, "action:reply", %{})
+    assert_reply ref, :error, %{code: "MISSING_CHOICE"}
+  end
+
+  # ---- Tick broadcast (regression canary) ----
 
   test "tick broadcast arrives within 2s after joining", %{socket: socket, zone_id: zone_id} do
     {:ok, _, _socket} =
@@ -60,5 +308,69 @@ defmodule AgentMmoWeb.GameChannelTest do
     assert payload.zone_id == zone_id
     assert Map.has_key?(payload, :tick)
     assert Map.has_key?(payload, :entities)
+  end
+
+  test "tick payload conforms to PROTOCOL.md schema", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, _socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    assert_push "tick", payload, 2000
+
+    # Required top-level fields per PROTOCOL.md §5.1
+    assert is_integer(payload.tick) and payload.tick >= 0
+    assert is_integer(payload.timestamp_ms) and payload.timestamp_ms > 0
+    assert is_binary(payload.zone_id)
+    assert is_map(payload.zone)
+    assert is_binary(payload.zone.id)
+    assert is_integer(payload.zone.width) and payload.zone.width > 0
+    assert is_integer(payload.zone.height) and payload.zone.height > 0
+    assert is_map(payload.position)
+    assert is_integer(payload.position.x)
+    assert is_integer(payload.position.y)
+    assert is_list(payload.entities)
+    assert is_list(payload.inventory)
+    assert is_list(payload.quest_log)
+    assert is_integer(payload.score)
+    assert is_integer(payload.steps)
+    assert is_list(payload.events)
+    assert is_list(payload.acked_seqs)
+  end
+
+  test "tick entity objects have required fields per PROTOCOL.md §5.1.1", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, _socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    assert_push "tick", payload, 2000
+
+    # If there are entities, each must have the required fields
+    for entity <- payload.entities do
+      assert is_binary(entity.type)
+      assert entity.type in ["player", "npc", "enemy", "item", "exit"]
+      assert is_binary(entity.id)
+      assert is_binary(entity.name)
+      assert is_map(entity.position)
+      assert is_integer(entity.position.x)
+      assert is_integer(entity.position.y)
+      assert is_float(entity.distance) or is_integer(entity.distance)
+    end
+  end
+
+  test "move seq is echoed in acked_seqs on next tick", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    seq = 99
+    ref = push(socket, "action:move", %{"direction" => "north", "seq" => seq})
+    assert_reply ref, :ok, %{acked: true}
+
+    # The next tick should contain our seq in acked_seqs
+    assert_push "tick", payload, 2000
+    assert seq in payload.acked_seqs
   end
 end
