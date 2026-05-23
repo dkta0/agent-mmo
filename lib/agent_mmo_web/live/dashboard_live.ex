@@ -93,10 +93,10 @@ defmodule AgentMmoWeb.DashboardLive do
       </p>
 
       <%!-- Flash messages --%>
-      <div :if={msg = live_flash(@flash, :error)} class="mb-4 bg-red-900 border border-red-700 rounded-lg p-3 text-red-200 text-sm">
+      <div :if={msg = Phoenix.Flash.get(@flash, :error)} class="mb-4 bg-red-900 border border-red-700 rounded-lg p-3 text-red-200 text-sm">
         <%= msg %>
       </div>
-      <div :if={msg = live_flash(@flash, :info)} class="mb-4 bg-blue-900 border border-blue-700 rounded-lg p-3 text-blue-200 text-sm">
+      <div :if={msg = Phoenix.Flash.get(@flash, :info)} class="mb-4 bg-blue-900 border border-blue-700 rounded-lg p-3 text-blue-200 text-sm">
         <%= msg %>
       </div>
 
@@ -198,38 +198,22 @@ defmodule AgentMmoWeb.DashboardLive do
         <%!-- Tab content --%>
         <div :if={@tab == "claude_code"}>
           <p class="text-sm text-gray-400 mb-2">Run your agent against TavernBench via Claude Code:</p>
-          <pre class="bg-gray-800 rounded p-3 text-sm font-mono text-green-400 overflow-x-auto">export TAVERNBENCH_API_KEY=&lt;your_key&gt;
-pip install tavernbench
-tavernbench run --scenario apprentice --agent claude</pre>
+          <pre class="bg-gray-800 rounded p-3 text-sm font-mono text-green-400 overflow-x-auto"><%= snippet(:claude_code) %></pre>
         </div>
 
         <div :if={@tab == "cursor"}>
           <p class="text-sm text-gray-400 mb-2">Run your Cursor agent against TavernBench:</p>
-          <pre class="bg-gray-800 rounded p-3 text-sm font-mono text-green-400 overflow-x-auto"># Set TAVERNBENCH_API_KEY in your shell env, then:
-pip install tavernbench
-tavernbench run --scenario apprentice --agent cursor</pre>
+          <pre class="bg-gray-800 rounded p-3 text-sm font-mono text-green-400 overflow-x-auto"><%= snippet(:cursor) %></pre>
         </div>
 
         <div :if={@tab == "codex"}>
           <p class="text-sm text-gray-400 mb-2">Run your Codex agent against TavernBench:</p>
-          <pre class="bg-gray-800 rounded p-3 text-sm font-mono text-green-400 overflow-x-auto">export TAVERNBENCH_API_KEY=&lt;your_key&gt;
-pip install tavernbench
-tavernbench run --scenario apprentice --agent codex</pre>
+          <pre class="bg-gray-800 rounded p-3 text-sm font-mono text-green-400 overflow-x-auto"><%= snippet(:codex) %></pre>
         </div>
 
         <div :if={@tab == "diy"}>
           <p class="text-sm text-gray-400 mb-2">Integrate via the Python SDK:</p>
-          <pre class="bg-gray-800 rounded p-3 text-sm font-mono text-green-400 overflow-x-auto">import tavernbench as tb
-
-client = tb.Client(api_key="&lt;your_key&gt;")
-run = client.start_run("apprentice")
-
-while not run.done:
-    obs = run.observe()
-    action = your_agent(obs)   # implement this
-    run.step(action)
-
-print(f"Score: &#123;run.score&#125;")</pre>
+          <pre class="bg-gray-800 rounded p-3 text-sm font-mono text-green-400 overflow-x-auto"><%= snippet(:diy) %></pre>
         </div>
       </div>
 
@@ -267,5 +251,31 @@ print(f"Score: &#123;run.score&#125;")</pre>
       </div>
     </div>
     """
+  end
+
+  defp snippet(:claude_code),
+    do: "export TAVERNBENCH_API_KEY=<your_key>\npip install tavernbench\ntavernbench run --scenario apprentice --agent claude"
+
+  defp snippet(:cursor),
+    do: "# Set TAVERNBENCH_API_KEY in your shell env, then:\npip install tavernbench\ntavernbench run --scenario apprentice --agent cursor"
+
+  defp snippet(:codex),
+    do: "export TAVERNBENCH_API_KEY=<your_key>\npip install tavernbench\ntavernbench run --scenario apprentice --agent codex"
+
+  defp snippet(:diy) do
+    """
+    import tavernbench as tb
+
+    client = tb.Client(api_key="<your_key>")
+    run = client.start_run("apprentice")
+
+    while not run.done:
+        obs = run.observe()
+        action = your_agent(obs)   # implement this
+        run.step(action)
+
+    print(f"Score: {run.score}")
+    """
+    |> String.trim_trailing()
   end
 end
