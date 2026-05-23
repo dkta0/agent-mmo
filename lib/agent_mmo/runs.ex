@@ -27,4 +27,15 @@ defmodule AgentMmo.Runs do
     |> Run.changeset(attrs)
     |> Repo.insert()
   end
+
+  @doc "Returns the 10 most recent runs for a given user_id."
+  def list_recent_runs_for_user(user_id) do
+    import Ecto.Query
+    Repo.all(
+      from r in Run,
+        where: r.user_id == ^user_id,
+        order_by: [desc: r.completed_at],
+        limit: 10
+    )
+  end
 end

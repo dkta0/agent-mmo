@@ -2,24 +2,20 @@ defmodule AgentMmo.Repo.Migrations.AlterRunsAddColumns do
   use Ecto.Migration
 
   def change do
-    alter table(:runs) do
-      add_if_not_exists :api_key_id,  references(:api_keys, on_delete: :nilify_all), null: true
-      add_if_not_exists :steps,       :integer, null: false, default: 0
-      add_if_not_exists :duration_ms, :integer, null: false, default: 0
-      add_if_not_exists :seed,        :string
-      add_if_not_exists :replay_data, :map
-    end
-
-    # Remove columns from original migration that conflict with Run schema
-    # (inserted_at / updated_at from timestamps() don't match the schema's
-    # timestamps(updated_at: false, inserted_at: :completed_at) — those are already correct)
-
-    # Drop updated_at if it exists (schema uses inserted_at: :completed_at, no updated_at)
+    # Safety-net migration: all columns already exist if created via 20260523190000.
+    # Uses raw SQL with IF NOT EXISTS / IF EXISTS to be idempotent.
     execute(
-      "ALTER TABLE runs DROP COLUMN IF EXISTS updated_at",
-      "ALTER TABLE runs ADD COLUMN IF NOT EXISTS updated_at timestamp(0) without time zone"
+      "ALTER TABLE runs ADD COLUMN IF NOT EXISTS api_key_id bigint REFERENCES api_keys(id) ON DELETE SET NULL",
+      "SELECT 1"
     )
-
-    create_if_not_exists index(:runs, [:user_id, :scenario, :ranked])
+    execute("ALTER TABLE runs ADD COLUMN IF NOT EXISTS steps integer NOT NULL DEFAULT 0", "SELECT 1")
+    execute("ALTER TABLE runs ADD COLUMN IF NOT EXISTS duration_ms integer NOT NULL DEFAULT 0", "SELECT 1")
+    execute("ALTER TABLE runs ADD COLUMN IF NOT EXISTS seed varchar(64)", "SELECT 1")
+    execute("ALTER TABLE runs ADD COLUMN IF NOT EXISTS replay_data jsonb", "SELECT 1")
+    execute("ALTER TABLE runs DROP COLUMN IF EXISTS updated_at", "SELECT 1")
+    execute(
+      "CREATE INDEX IF NOT EXISTS runs_user_id_scenario_ranked_index ON runs (user_id, scenario, ranked)",
+      "SELECT 1"
+    )
   end
 end
