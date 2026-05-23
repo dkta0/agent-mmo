@@ -14,6 +14,7 @@ defmodule AgentMmoWeb.Router do
     pipe_through :api
     get "/leaderboard", LeaderboardController, :index
     post "/keys", KeyController, :create
+    post "/runs", RunController, :create
   end
 
   # Enable LiveDashboard in development
