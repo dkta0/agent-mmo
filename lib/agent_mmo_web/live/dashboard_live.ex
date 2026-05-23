@@ -229,7 +229,7 @@ while not run.done:
     action = your_agent(obs)   # implement this
     run.step(action)
 
-print(f"Score: {run.score}")</pre>
+print(f"Score: &#123;run.score&#125;")</pre>
         </div>
       </div>
 
