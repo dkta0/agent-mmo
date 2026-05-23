@@ -1,7 +1,6 @@
 defmodule AgentMmo.Accounts do
   @moduledoc "User account management context."
 
-  import Ecto.Query
   alias AgentMmo.Repo
   alias AgentMmo.Accounts.{User, UserToken}
 
