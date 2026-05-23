@@ -8,8 +8,6 @@ Low-level (legacy):
     from tavernbench import AsyncClient, Client
 """
 
-__version__ = "0.1.0"  # keep in sync with pyproject.toml [project] version
-
 from .session import Session
 from .websocket import (
     AsyncClient,
