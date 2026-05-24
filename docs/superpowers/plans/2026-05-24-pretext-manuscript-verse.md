@@ -23,7 +23,12 @@ No other files touched. No new dependencies in `mix.exs`. No new static assets.
 
 ## Task 1: Gate — confirm copy and illumination art
 
-**Files:** none
+**Files:** none — **CLEARED 2026-05-24.**
+
+**Locked decisions (user-approved via AskUserQuestion on 2026-05-24):**
+- **Body inscription copy:** use the draft as-written below in Step 1.
+- **Illumination ASCII:** use the proposed 10-line torch as-drafted in Step 2.
+- **Marginalia gloss:** **DROPPED.** Implementor must omit the `<aside class="manuscript-gloss">…</aside>` element from Task 3's HEEx block and must also omit the `.manuscript-gloss` CSS rule (including its `@media (max-width: 880px)` override) from Task 3's CSS block.
 
 This is the user-approval gate from the spec. No code is written, no commit is made until both items are locked. The implementor poses the questions, the user responds, the implementor records the decisions in this plan document (edit Task 1 to record the locked values before moving on).
 
