@@ -1568,46 +1568,97 @@
     try {
       pretext = await import('https://esm.sh/@chenglou/pretext@0.0.7');
     } catch (err) {
-      // CDN unreachable — leave the fallback <p> visible
-      return;
+      return; // CDN unreachable — leave the fallback <p> visible
     }
+
+    // ---- Constants ----
+    const R              = 160;       // cursor circle radius, px
+    const MIN_WIDTH      = 40;        // chord-width floor
+    const N_LINES_MAX    = 20;        // pool size
+    const BASE_OPACITY   = 0.18;
+    const QUANTIZE_PX    = 2;         // skip layoutFrame if cursor moved <2px
+
+    // ---- Closure state ----
+    let prepared       = null;
+    let columnWidth    = 0;
+    let lineHeightPx   = 0;
+    let padLeft        = 0;
+    let padTop         = 0;
+    let rootRect       = null;
+    let cursorXLocal   = null;
+    let cursorYLocal   = null;
+    let lineEls        = [];
+    let lastCursorX    = -9999;
+    let lastCursorY    = -9999;
+    let lastUseStatic  = null;
 
     function buildFontString(el) {
       const cs = getComputedStyle(el);
-      // Canvas font shorthand: "[style] [weight] [size] [family]"
       return `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
     }
 
-    function layoutBody() {
-      root.querySelectorAll('.manuscript-line').forEach(el => el.remove());
-
-      const rootRect = root.getBoundingClientRect();
+    function init() {
+      // Compute layout-dependent constants
+      rootRect = root.getBoundingClientRect();
       const cs = getComputedStyle(root);
-      const padLeft = parseFloat(cs.paddingLeft) || 0;
+      padLeft = parseFloat(cs.paddingLeft) || 0;
+      padTop  = parseFloat(cs.paddingTop)  || 0;
       const padRight = parseFloat(cs.paddingRight) || 0;
-      const padTop = parseFloat(cs.paddingTop) || 0;
-      const columnWidth = rootRect.width - padLeft - padRight;
+      columnWidth = rootRect.width - padLeft - padRight;
 
       const bodyCS = getComputedStyle(body);
-      const lineHeightPx = parseFloat(bodyCS.lineHeight);
-      const font = buildFontString(body);
+      lineHeightPx = parseFloat(bodyCS.lineHeight);
 
+      // Prepare pretext once with current font
       const text = body.textContent.replace(/\s+/g, ' ').trim();
-      const prepared = pretext.prepareWithSegments(text, font);
+      const font = buildFontString(body);
+      prepared = pretext.prepareWithSegments(text, font);
 
-      let cursor = { segmentIndex: 0, graphemeIndex: 0 };
-      let y = 0;
-
-      while (true) {
-        const range = pretext.layoutNextLineRange(prepared, cursor, columnWidth);
-        if (range === null) break;
-
-        const line = pretext.materializeLineRange(prepared, range);
+      // Ensure line pool exists
+      while (lineEls.length < N_LINES_MAX) {
         const el = document.createElement('div');
         el.className = 'manuscript-line';
-        el.style.left = padLeft + 'px';
-        el.style.top  = (padTop + y) + 'px';
-        el.style.maxWidth = columnWidth + 'px';
+        el.style.display = 'none';
+        root.appendChild(el);
+        lineEls.push(el);
+      }
+
+      root.classList.add('pretext-active');
+    }
+
+    function layoutFrame() {
+      if (!prepared) return;
+
+      // useStatic path: static full-column-width, full opacity. This is what
+      // reduced-motion, mobile, off-viewport, and no-cursor users see — and
+      // also what shows until CT5 wires up the cursor-aware IN/OUT modes.
+      const useStatic = true;
+
+      let cur = { segmentIndex: 0, graphemeIndex: 0 };
+      let y = 0;
+      let lineIdx = 0;
+
+      while (lineIdx < N_LINES_MAX) {
+        const maxWidth = columnWidth;
+        const startX   = 0;
+        const opacity  = 1.0;
+
+        const range = pretext.layoutNextLineRange(prepared, cur, maxWidth);
+        if (range === null) {
+          // Hide remaining pool slots
+          for (let k = lineIdx; k < N_LINES_MAX; k++) {
+            lineEls[k].style.display = 'none';
+          }
+          return;
+        }
+
+        const line = pretext.materializeLineRange(prepared, range);
+        const el = lineEls[lineIdx];
+        el.style.display  = 'block';
+        el.style.left     = (padLeft + startX) + 'px';
+        el.style.top      = (padTop + y) + 'px';
+        el.style.maxWidth = maxWidth + 'px';
+        el.style.opacity  = opacity.toFixed(3);
 
         const accentRe = /\bsurvive\b/i;
         if (accentRe.test(line.text)) {
@@ -1616,26 +1667,27 @@
           el.textContent = line.text;
         }
 
-        root.appendChild(el);
-
-        cursor = range.end;
+        cur = range.end;
         y += lineHeightPx;
+        lineIdx++;
       }
-
-      root.classList.add('pretext-active');
     }
 
-    // Wait for the real fonts before measuring — pretext measures via canvas,
-    // and a fallback-font measurement will be wrong once the real font lands.
+    // Wait for fonts so canvas measurement uses the real metrics
     if (document.fonts && document.fonts.ready) {
       await document.fonts.ready;
     }
-    layoutBody();
+
+    init();
+    layoutFrame();
 
     let resizeTimer = null;
     window.addEventListener('resize', () => {
       clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(layoutBody, 200);
+      resizeTimer = setTimeout(() => {
+        init();
+        layoutFrame();
+      }, 200);
     });
   })();
 </script>
