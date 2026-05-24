@@ -547,8 +547,8 @@
 
   .manuscript-illumination {
     position: absolute;
-    top: 64px;
-    left: 72px;
+    top: 50%;
+    transform: translateY(-50%);
     margin: 0;
     font-family: var(--mono);
     font-size: clamp(14px, 1.4vw, 18px);
@@ -558,6 +558,8 @@
     user-select: none;
     z-index: 2;
   }
+  .manuscript-illumination-left  { left:  -100px; }
+  .manuscript-illumination-right { right: -100px; }
   .manuscript-illumination .flame {
     color: var(--torch-bright);
     text-shadow:
@@ -631,8 +633,7 @@
 
   @media (max-width: 880px) {
     .manuscript-illumination {
-      position: static;
-      margin-bottom: 24px;
+      display: none;
     }
   }
 
@@ -1026,7 +1027,18 @@
         <span class="corner-bl"></span>
         <span class="corner-br"></span>
 
-        <pre class="manuscript-illumination" aria-hidden="true"><span class="flame">     )</span>
+        <pre class="manuscript-illumination manuscript-illumination-left" aria-hidden="true"><span class="flame">     )</span>
+<span class="flame">   ( ) )</span>
+<span class="flame-2">    ( )</span>
+<span class="flame">     )</span>
+<span class="ember-glow">   ▓▓▓</span>
+<span class="ember-glow">   ▓▓▓</span>
+<span class="handle">    │</span>
+<span class="handle">    │</span>
+<span class="handle">    │</span>
+<span class="ground">   ─────</span></pre>
+
+        <pre class="manuscript-illumination manuscript-illumination-right" aria-hidden="true"><span class="flame">     )</span>
 <span class="flame">   ( ) )</span>
 <span class="flame-2">    ( )</span>
 <span class="flame">     )</span>
@@ -1606,7 +1618,7 @@
     const R              = 160;       // cursor circle radius, px
     const MIN_WIDTH      = 40;        // chord-width floor
     const N_LINES_MAX    = 20;        // pool size
-    const BASE_OPACITY   = 0.18;
+    const BASE_OPACITY   = 0.05;     // dim baseline — prose is "lore to be uncovered"
     const QUANTIZE_PX    = 2;         // skip layoutFrame if cursor moved <2px
 
     // ---- Closure state ----
@@ -1670,6 +1682,9 @@
 
     const viewportIO = new IntersectionObserver((entries) => {
       for (const entry of entries) inViewport = entry.isIntersecting;
+      // Re-render so the dim/reveal state applies as soon as the manuscript
+      // enters the viewport, even if the cursor hasn't moved since page load.
+      layoutFrame();
     }, { threshold: 0 });
 
     // Read cursor coords (set by the global pointermove handler) and translate
@@ -1690,8 +1705,14 @@
 
       refreshCursorLocal();
 
-      const useStatic = reducedMotion || mobile || !inViewport
-                     || cursorXLocal == null || cursorYLocal == null;
+      // Accessibility fallback: reduced-motion and mobile users get the prose
+      // at full opacity statically (they can't move a cursor to reveal it).
+      const useAccessibleFull = reducedMotion || mobile || !inViewport;
+
+      // Cursor-driven dim state: when JS is active and accessibility doesn't
+      // override, the prose starts dim regardless of whether the cursor is over
+      // the manuscript yet. Only the cursor's reveal band brightens lines.
+      const cursorPresent = cursorXLocal != null && cursorYLocal != null;
 
       let cur = { segmentIndex: 0, graphemeIndex: 0 };
       let y = 0;
@@ -1701,16 +1722,16 @@
         const lineMidY = y + lineHeightPx / 2;
         let maxWidth, startX, opacity;
 
-        // Lines always lay out at full column width — only opacity varies with
-        // cursor proximity. (Earlier iteration used chord-width reflow inside
-        // the disk, but that caused the prose to bunch inside the cursor disk
-        // with nothing left over for OUT-mode lines. Opacity-only keeps the
-        // static layout intact while still surfacing the reveal effect.)
+        // Lines always lay out at full column width — only opacity varies.
         maxWidth = columnWidth;
         startX   = 0;
 
-        if (useStatic) {
-          opacity  = 1.0;
+        if (useAccessibleFull) {
+          // Reduced-motion / mobile / off-viewport: show prose plainly.
+          opacity = 1.0;
+        } else if (!cursorPresent) {
+          // Cursor not over the manuscript: prose stays dim. Lore to uncover.
+          opacity = BASE_OPACITY;
         } else {
           const dy = Math.abs(lineMidY - cursorYLocal);
           if (dy > R) {
