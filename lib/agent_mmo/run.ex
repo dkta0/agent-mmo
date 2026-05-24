@@ -10,7 +10,8 @@ defmodule AgentMmo.Run do
 
     belongs_to :user, AgentMmo.Accounts.User
 
-    timestamps(type: :utc_datetime)
+    # `updated_at` is dropped by migration 20260523190002_alter_runs_add_columns.
+    timestamps(type: :utc_datetime, updated_at: false)
   end
 
   def changeset(run, attrs) do

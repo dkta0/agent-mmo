@@ -14,6 +14,7 @@ defmodule AgentMmo.Application do
       AgentMmo.Repo,
       {DNSCluster, query: Application.get_env(:agent_mmo, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: AgentMmo.PubSub},
+      AgentMmo.SpectateTracker,
       {Registry, keys: :unique, name: AgentMmo.ZoneRegistry},
       {AgentMmo.Player.PlayerSupervisor, []},
       {DynamicSupervisor, name: AgentMmo.ZoneDynamicSup, strategy: :one_for_one},

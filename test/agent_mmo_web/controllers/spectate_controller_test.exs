@@ -1,7 +1,15 @@
 defmodule AgentMmoWeb.SpectateControllerTest do
-  use AgentMmoWeb.ConnCase
+  use AgentMmoWeb.ConnCase, async: false
 
   alias AgentMmo.SpectateTracker
+
+  setup do
+    # SpectateTracker is a singleton GenServer started by the application
+    # supervisor; reset its state so cross-test pollution from concurrent
+    # GameChannel tests doesn't leak in.
+    :ok = SpectateTracker.reset()
+    :ok
+  end
 
   describe "GET /spectate" do
     test "returns 200 HTML with iframe-embeddable headers", %{conn: conn} do

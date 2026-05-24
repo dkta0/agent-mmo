@@ -49,9 +49,17 @@ defmodule AgentMmoWeb.Router do
     get "/health", HealthController, :index
   end
 
+  ## Embeddable spectator widget (HTML, not :api pipeline)
+  scope "/", AgentMmoWeb do
+    get "/spectate", SpectateController, :embed
+  end
+
   scope "/api", AgentMmoWeb do
     pipe_through :api
     get "/leaderboard", LeaderboardController, :index
+    get "/scenarios", ScenarioController, :index
+    get "/spectate/current", SpectateController, :current
+    get "/spectate/ranked", SpectateController, :ranked
     post "/keys", KeyController, :create
     post "/runs", RunController, :create
   end
