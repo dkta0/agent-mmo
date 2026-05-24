@@ -602,6 +602,32 @@
     visibility: hidden;
   }
 
+  /* Content wrapper around the body + laid-out lines. The CSS radial-gradient
+     mask below is applied here so the reveal effect is scoped to the prose
+     itself — illuminations, corner brackets, and attribution stay unmasked. */
+  .manuscript-content {
+    position: relative;
+    transition: opacity 200ms linear;
+  }
+  .manuscript-page:not(.has-cursor) .manuscript-content {
+    opacity: 0.05;
+  }
+  .manuscript-page.has-cursor .manuscript-content {
+    opacity: 1;
+    -webkit-mask-image: radial-gradient(
+      circle 100px at var(--cursor-mask-x, 50%) var(--cursor-mask-y, 50%),
+      rgba(0,0,0,1)    0%,
+      rgba(0,0,0,1)    40%,
+      rgba(0,0,0,0.05) 100%
+    );
+            mask-image: radial-gradient(
+      circle 100px at var(--cursor-mask-x, 50%) var(--cursor-mask-y, 50%),
+      rgba(0,0,0,1)    0%,
+      rgba(0,0,0,1)    40%,
+      rgba(0,0,0,0.05) 100%
+    );
+  }
+
   .manuscript-line {
     position: absolute;
     font-family: var(--serif);
@@ -629,11 +655,21 @@
       transition: none;
       opacity: 1 !important;
     }
+    .manuscript-page .manuscript-content {
+      opacity: 1 !important;
+      -webkit-mask-image: none !important;
+              mask-image: none !important;
+    }
   }
 
   @media (max-width: 880px) {
     .manuscript-illumination {
       display: none;
+    }
+    .manuscript-page .manuscript-content {
+      opacity: 1;
+      -webkit-mask-image: none;
+              mask-image: none;
     }
   }
 
@@ -1049,12 +1085,14 @@
 <span class="handle">    │</span>
 <span class="ground">   ─────</span></pre>
 
-        <p class="manuscript-body">
-          We did not ask if it could speak in our tongue.
-          We did not ask if it could solve our riddles.
-          We asked if it would still be standing
-          when the door swung shut behind it &mdash; <span class="torch">survive</span>.
-        </p>
+        <div class="manuscript-content">
+          <p class="manuscript-body">
+            We did not ask if it could speak in our tongue.
+            We did not ask if it could solve our riddles.
+            We asked if it would still be standing
+            when the door swung shut behind it &mdash; <span class="torch">survive</span>.
+          </p>
+        </div>
 
         <div class="attrib">
           <span class="star">✦</span>
@@ -1192,19 +1230,22 @@
     mouseX = e.clientX;
     mouseY = e.clientY;
 
-    // Bridge cursor coords to the manuscriptVerse IIFE. Expose rootRect-relative
-    // coords (without padding subtraction — the IIFE finishes the transform).
-    // null when cursor is outside the manuscript-page's bounding box.
+    // Drive the manuscript-page's reveal mask via two CSS custom properties.
+    // The CSS radial-gradient mask reads --cursor-mask-x / --cursor-mask-y for
+    // the disk's center, and the .has-cursor class toggles between the dim
+    // baseline (no cursor) and the cursor-driven reveal state.
     if (manuscriptRootEl) {
       const r = manuscriptRootEl.getBoundingClientRect();
-      if (e.clientX >= r.left && e.clientX <= r.right &&
-          e.clientY >= r.top  && e.clientY <= r.bottom) {
-        window.__manuscriptCursor = {
-          x: e.clientX - r.left,
-          y: e.clientY - r.top
-        };
-      } else {
-        window.__manuscriptCursor = null;
+      const inside = e.clientX >= r.left && e.clientX <= r.right &&
+                     e.clientY >= r.top  && e.clientY <= r.bottom;
+      if (inside) {
+        manuscriptRootEl.style.setProperty('--cursor-mask-x', (e.clientX - r.left) + 'px');
+        manuscriptRootEl.style.setProperty('--cursor-mask-y', (e.clientY - r.top)  + 'px');
+        if (!manuscriptRootEl.classList.contains('has-cursor')) {
+          manuscriptRootEl.classList.add('has-cursor');
+        }
+      } else if (manuscriptRootEl.classList.contains('has-cursor')) {
+        manuscriptRootEl.classList.remove('has-cursor');
       }
     }
   });
@@ -1216,20 +1257,6 @@
     cY  += (mouseY - cY) * 0.4;
     if (torchlight) torchlight.style.transform = `translate(calc(-50% + ${tlX}px), calc(-50% + ${tlY}px))`;
     if (cursor)     cursor.style.transform     = `translate(calc(-50% + ${cX}px), calc(-50% + ${cY}px))`;
-
-    if (window.__manuscriptLayoutFrame) {
-      const c = window.__manuscriptCursor;
-      const cx = c ? c.x : null;
-      const cy = c ? c.y : null;
-      const movedX = Math.abs((cx == null ? -9999 : cx) - (window.__lastManuscriptCursorX == null ? -9999 : window.__lastManuscriptCursorX));
-      const movedY = Math.abs((cy == null ? -9999 : cy) - (window.__lastManuscriptCursorY == null ? -9999 : window.__lastManuscriptCursorY));
-      const cursorEnteredOrLeft = (cx == null) !== (window.__lastManuscriptCursorX == null);
-      if (cursorEnteredOrLeft || movedX >= 2 || movedY >= 2) {
-        window.__lastManuscriptCursorX = cx;
-        window.__lastManuscriptCursorY = cy;
-        window.__manuscriptLayoutFrame();
-      }
-    }
 
     requestAnimationFrame(tick);
   }
@@ -1596,16 +1623,18 @@
 
   // ============================================================
   // Pretext manuscript verse — station 04
-  // Body prose lays out at full column width below the illumination
-  // (per-frame reading-window reflow is added in subsequent tasks).
+  // Pretext lays the body out once into a pool of .manuscript-line divs
+  // inside .manuscript-content. The reveal effect itself is pure CSS:
+  // a radial-gradient mask on .manuscript-content driven by two CSS
+  // custom properties that the global pointermove handler updates.
   // ============================================================
   (async function manuscriptVerse() {
     const root = document.querySelector('.manuscript-page[data-pretext-mount]');
     if (!root) return;
 
-    const illumination = root.querySelector('.manuscript-illumination');
     const body = root.querySelector('.manuscript-body');
-    if (!illumination || !body) return;
+    const content = root.querySelector('.manuscript-content');
+    if (!body || !content) return;
 
     let pretext;
     try {
@@ -1614,29 +1643,12 @@
       return; // CDN unreachable — leave the fallback <p> visible
     }
 
-    // ---- Constants ----
-    const R              = 160;       // cursor circle radius, px
-    const MIN_WIDTH      = 40;        // chord-width floor
-    const N_LINES_MAX    = 20;        // pool size
-    const BASE_OPACITY   = 0.05;     // dim baseline — prose is "lore to be uncovered"
-    const QUANTIZE_PX    = 2;         // skip layoutFrame if cursor moved <2px
+    const N_LINES_MAX = 20;
 
-    // ---- Closure state ----
-    let prepared       = null;
-    let columnWidth    = 0;
-    let lineHeightPx   = 0;
-    let padLeft        = 0;
-    let padTop         = 0;
-    let rootRect       = null;
-    let cursorXLocal   = null;
-    let cursorYLocal   = null;
-    let lineEls        = [];
-    let lastCursorX    = -9999;
-    let lastCursorY    = -9999;
-    let lastUseStatic  = null;
-    let reducedMotion  = false;
-    let mobile         = false;
-    let inViewport     = false;
+    let prepared    = null;
+    let columnWidth = 0;
+    let lineHeightPx = 0;
+    let lineEls     = [];
 
     function buildFontString(el) {
       const cs = getComputedStyle(el);
@@ -1644,11 +1656,9 @@
     }
 
     function init() {
-      // Compute layout-dependent constants
-      rootRect = root.getBoundingClientRect();
+      const rootRect = root.getBoundingClientRect();
       const cs = getComputedStyle(root);
-      padLeft = parseFloat(cs.paddingLeft) || 0;
-      padTop  = parseFloat(cs.paddingTop)  || 0;
+      const padLeft  = parseFloat(cs.paddingLeft)  || 0;
       const padRight = parseFloat(cs.paddingRight) || 0;
       columnWidth = rootRect.width - padLeft - padRight;
 
@@ -1660,89 +1670,28 @@
       const font = buildFontString(body);
       prepared = pretext.prepareWithSegments(text, font);
 
-      // Ensure line pool exists
+      // Ensure line pool exists, parented to .manuscript-content so the mask
+      // scopes correctly.
       while (lineEls.length < N_LINES_MAX) {
         const el = document.createElement('div');
         el.className = 'manuscript-line';
         el.style.display = 'none';
-        root.appendChild(el);
+        content.appendChild(el);
         lineEls.push(el);
       }
 
       root.classList.add('pretext-active');
     }
 
-    const reducedMotionMQ = window.matchMedia('(prefers-reduced-motion: reduce)');
-    reducedMotion = reducedMotionMQ.matches;
-    reducedMotionMQ.addEventListener('change', e => { reducedMotion = e.matches; });
-
-    const mobileMQ = window.matchMedia('(max-width: 880px)');
-    mobile = mobileMQ.matches;
-    mobileMQ.addEventListener('change', e => { mobile = e.matches; });
-
-    const viewportIO = new IntersectionObserver((entries) => {
-      for (const entry of entries) inViewport = entry.isIntersecting;
-      // Re-render so the dim/reveal state applies as soon as the manuscript
-      // enters the viewport, even if the cursor hasn't moved since page load.
-      layoutFrame();
-    }, { threshold: 0 });
-
-    // Read cursor coords (set by the global pointermove handler) and translate
-    // from rootRect-relative to local-content-space (padding subtracted).
-    function refreshCursorLocal() {
-      const c = window.__manuscriptCursor;
-      if (c == null) {
-        cursorXLocal = null;
-        cursorYLocal = null;
-        return;
-      }
-      cursorXLocal = c.x - padLeft;
-      cursorYLocal = c.y - padTop;
-    }
-
     function layoutFrame() {
       if (!prepared) return;
-
-      refreshCursorLocal();
-
-      // Accessibility fallback: reduced-motion and mobile users get the prose
-      // at full opacity statically (they can't move a cursor to reveal it).
-      const useAccessibleFull = reducedMotion || mobile || !inViewport;
-
-      // Cursor-driven dim state: when JS is active and accessibility doesn't
-      // override, the prose starts dim regardless of whether the cursor is over
-      // the manuscript yet. Only the cursor's reveal band brightens lines.
-      const cursorPresent = cursorXLocal != null && cursorYLocal != null;
 
       let cur = { segmentIndex: 0, graphemeIndex: 0 };
       let y = 0;
       let lineIdx = 0;
 
       while (lineIdx < N_LINES_MAX) {
-        const lineMidY = y + lineHeightPx / 2;
-        let maxWidth, startX, opacity;
-
-        // Lines always lay out at full column width — only opacity varies.
-        maxWidth = columnWidth;
-        startX   = 0;
-
-        if (useAccessibleFull) {
-          // Reduced-motion / mobile / off-viewport: show prose plainly.
-          opacity = 1.0;
-        } else if (!cursorPresent) {
-          // Cursor not over the manuscript: prose stays dim. Lore to uncover.
-          opacity = BASE_OPACITY;
-        } else {
-          const dy = Math.abs(lineMidY - cursorYLocal);
-          if (dy > R) {
-            opacity = BASE_OPACITY;
-          } else {
-            // Smooth ramp from full at cursor's Y to BASE_OPACITY at the rim
-            opacity = BASE_OPACITY + (1.0 - BASE_OPACITY) * (1.0 - dy / R);
-          }
-        }
-
-        const range = pretext.layoutNextLineRange(prepared, cur, maxWidth);
+        const range = pretext.layoutNextLineRange(prepared, cur, columnWidth);
         if (range === null) {
           for (let k = lineIdx; k < N_LINES_MAX; k++) {
             lineEls[k].style.display = 'none';
@@ -1753,10 +1702,9 @@
         const line = pretext.materializeLineRange(prepared, range);
         const el = lineEls[lineIdx];
         el.style.display  = 'block';
-        el.style.left     = (padLeft + startX) + 'px';
-        el.style.top      = (padTop + y) + 'px';
-        el.style.maxWidth = maxWidth + 'px';
-        el.style.opacity  = opacity.toFixed(3);
+        el.style.left     = '0';
+        el.style.top      = y + 'px';
+        el.style.maxWidth = columnWidth + 'px';
 
         const accentRe = /\bsurvive\b/i;
         if (accentRe.test(line.text)) {
@@ -1777,8 +1725,6 @@
     }
 
     init();
-    window.__manuscriptLayoutFrame = layoutFrame;
-    viewportIO.observe(root);
     layoutFrame();
 
     let resizeTimer = null;
