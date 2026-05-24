@@ -1643,11 +1643,15 @@
       let y = 0;
 
       while (true) {
-        // A line "collides" with the illumination if any part of its line-box
-        // overlaps the illumination's vertical range.
+        // A line "collides" with the illumination if its vertical midpoint
+        // falls inside the illumination's vertical range. Midpoint-based (not
+        // any-overlap) so that a line whose top is just inside the illumination
+        // but whose body sits mostly below it flushes back to the left margin.
+        // That's the difference between "paragraph indented under torch" and
+        // "paragraph wrapped around torch then flowing back beneath it."
         const lineTop    = y;
-        const lineBottom = y + lineHeightPx;
-        const collides   = lineBottom > illTop && lineTop < (illTop + illH);
+        const lineMid    = y + lineHeightPx / 2;
+        const collides   = lineMid > illTop && lineMid < (illTop + illH);
 
         const rawMaxWidth = collides ? (columnWidth - illW - GUTTER) : columnWidth;
         // Never let maxWidth drop below 40% of column — pretext given a
