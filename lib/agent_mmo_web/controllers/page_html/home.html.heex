@@ -1532,6 +1532,83 @@
     setInterval(step, 360);
     setInterval(regenerateCycle, 26000);
   })();
+
+  // ============================================================
+  // Pretext manuscript verse — station 04
+  // Body prose wraps around the ASCII illumination drop-cap.
+  // ============================================================
+  (async function manuscriptVerse() {
+    const root = document.querySelector('.manuscript-page[data-pretext-mount]');
+    if (!root) return;
+
+    const illumination = root.querySelector('.manuscript-illumination');
+    const body = root.querySelector('.manuscript-body');
+    if (!illumination || !body) return;
+
+    let pretext;
+    try {
+      pretext = await import('https://esm.sh/@chenglou/pretext@0.0.7');
+    } catch (err) {
+      // CDN unreachable — leave the fallback <p> visible
+      return;
+    }
+
+    const GUTTER = 24;
+    const ACCENT_WORD = 'survive';
+
+    function buildFontString(el) {
+      const cs = getComputedStyle(el);
+      // Canvas font shorthand: "[style] [weight] [size] [family]"
+      return `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    }
+
+    function layoutBody() {
+      // Clear any previously rendered lines from a prior layout pass
+      root.querySelectorAll('.manuscript-line').forEach(el => el.remove());
+
+      const rootRect = root.getBoundingClientRect();
+      const cs = getComputedStyle(root);
+      const padLeft = parseFloat(cs.paddingLeft) || 0;
+      const padRight = parseFloat(cs.paddingRight) || 0;
+      const padTop = parseFloat(cs.paddingTop) || 0;
+      const columnWidth = rootRect.width - padLeft - padRight;
+
+      const bodyCS = getComputedStyle(body);
+      const lineHeightPx = parseFloat(bodyCS.lineHeight);
+      const font = buildFontString(body);
+
+      // Plain text — accent will be wrapped after layout via post-process
+      const text = body.textContent.replace(/\s+/g, ' ').trim();
+
+      const prepared = pretext.prepareWithSegments(text, font);
+
+      let cursor = { segmentIndex: 0, graphemeIndex: 0 };
+      let y = 0;
+
+      while (true) {
+        const maxWidth = columnWidth;          // no obstacle yet — T5 adds it
+        const startX = 0;
+        const range = pretext.layoutNextLineRange(prepared, cursor, maxWidth);
+        if (range === null) break;
+
+        const line = pretext.materializeLineRange(prepared, range);
+        const el = document.createElement('div');
+        el.className = 'manuscript-line';
+        el.textContent = line.text;
+        el.style.left = (padLeft + startX) + 'px';
+        el.style.top  = (padTop + y) + 'px';
+        el.style.maxWidth = maxWidth + 'px';
+        root.appendChild(el);
+
+        cursor = range.end;
+        y += lineHeightPx;
+      }
+
+      root.classList.add('pretext-active');
+    }
+
+    layoutBody();
+  })();
 </script>
 
 </body>
