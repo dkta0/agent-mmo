@@ -1544,7 +1544,8 @@
 
   // ============================================================
   // Pretext manuscript verse — station 04
-  // Body prose wraps around the ASCII illumination drop-cap.
+  // Body prose lays out at full column width below the illumination
+  // (per-frame reading-window reflow is added in subsequent tasks).
   // ============================================================
   (async function manuscriptVerse() {
     const root = document.querySelector('.manuscript-page[data-pretext-mount]');
@@ -1561,9 +1562,6 @@
       // CDN unreachable — leave the fallback <p> visible
       return;
     }
-
-    const GUTTER = 24;
-    const ACCENT_WORD = 'survive';
 
     function buildFontString(el) {
       const cs = getComputedStyle(el);
