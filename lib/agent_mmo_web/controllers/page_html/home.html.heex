@@ -607,7 +607,10 @@
      itself — illuminations, corner brackets, and attribution stay unmasked. */
   .manuscript-content {
     position: relative;
-    transition: opacity 200ms linear;
+    /* No opacity transition: the mask-image flips on/off instantly with the
+       .has-cursor class, and transitioning opacity alone causes a bright
+       flash when the cursor leaves (opacity is still high while the mask is
+       already gone). Both states snap. */
   }
   .manuscript-page:not(.has-cursor) .manuscript-content {
     opacity: 0.05;
