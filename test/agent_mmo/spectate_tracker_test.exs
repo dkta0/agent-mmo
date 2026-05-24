@@ -4,9 +4,10 @@ defmodule AgentMmo.SpectateTrackerTest do
   alias AgentMmo.SpectateTracker
 
   setup do
-    # Start a fresh tracker for each test
-    {:ok, pid} = start_supervised(SpectateTracker)
-    %{pid: pid}
+    # SpectateTracker is started by the application supervisor (see Application).
+    # Reset its state for test isolation rather than starting a new instance.
+    :ok = SpectateTracker.reset()
+    %{pid: Process.whereis(SpectateTracker)}
   end
 
   describe "current_run/0" do

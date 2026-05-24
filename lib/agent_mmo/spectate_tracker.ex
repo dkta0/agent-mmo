@@ -51,6 +51,9 @@ defmodule AgentMmo.SpectateTracker do
     GenServer.cast(__MODULE__, {:run_ended, player_id})
   end
 
+  @doc "Clear all tracked runs. Intended for test isolation."
+  def reset, do: GenServer.call(__MODULE__, :reset)
+
   # --- Server callbacks ---
 
   @impl true
@@ -61,6 +64,10 @@ defmodule AgentMmo.SpectateTracker do
   end
 
   @impl true
+  def handle_call(:reset, _from, _state) do
+    {:reply, :ok, %__MODULE__{}}
+  end
+
   def handle_call(:current_run, _from, %{top_player_id: nil} = state) do
     {:reply, :none, state}
   end
