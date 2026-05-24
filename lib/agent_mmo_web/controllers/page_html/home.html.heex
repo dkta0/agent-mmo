@@ -1158,40 +1158,47 @@
   let tlX = mouseX, tlY = mouseY;
   let cX = mouseX, cY = mouseY;
 
-  const manuscriptRoot = () => document.querySelector('.manuscript-page[data-pretext-mount]');
-  const manuscriptIll  = () => document.querySelector('.manuscript-page[data-pretext-mount] .manuscript-illumination');
-
-  // Cache the illumination center; recomputed on scroll/resize because position changes.
+  // Cache the manuscript root + illumination center. The lookups are done
+  // once after DOM ready; pointermove only reads cached values + lerps a
+  // CSS custom property at rAF cadence in tick() (not per pointer event)
+  // so multi-layer text-shadow repaints don't starve the cursor's rAF.
+  let manuscriptRootEl = null;
   let illCenter = null;
-  function refreshIllCenter() {
-    const ill = manuscriptIll();
+  function refreshManuscriptRefs() {
+    manuscriptRootEl = document.querySelector('.manuscript-page[data-pretext-mount]');
+    const ill = manuscriptRootEl
+      ? manuscriptRootEl.querySelector('.manuscript-illumination')
+      : null;
     if (!ill) { illCenter = null; return; }
     const r = ill.getBoundingClientRect();
     illCenter = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
   }
-  refreshIllCenter();
-  window.addEventListener('scroll', refreshIllCenter, { passive: true });
-  window.addEventListener('resize', refreshIllCenter);
+  refreshManuscriptRefs();
+  window.addEventListener('scroll', refreshManuscriptRefs, { passive: true });
+  window.addEventListener('resize', refreshManuscriptRefs);
 
   window.addEventListener('pointermove', (e) => {
     mouseX = e.clientX;
     mouseY = e.clientY;
-
-    if (illCenter) {
-      const root = manuscriptRoot();
-      if (root) {
-        const dx = e.clientX - illCenter.x;
-        const dy = e.clientY - illCenter.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        // 0 when far (>360px), 1 when on top (<60px) — smooth ramp
-        const NEAR = 60, FAR = 360;
-        let t = 1 - (dist - NEAR) / (FAR - NEAR);
-        if (t < 0) t = 0;
-        if (t > 1) t = 1;
-        root.style.setProperty('--torch-distance', t.toFixed(3));
-      }
-    }
   });
+
+  // Torch-distance updates run in the rAF tick (see below), debounced by a
+  // quantization threshold so we only repaint when proximity changes meaningfully.
+  let lastTorchDistance = -1;
+  function maybeUpdateTorchDistance() {
+    if (!illCenter || !manuscriptRootEl) return;
+    const dx = mouseX - illCenter.x;
+    const dy = mouseY - illCenter.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const NEAR = 60, FAR = 360;
+    let t = 1 - (dist - NEAR) / (FAR - NEAR);
+    if (t < 0) t = 0;
+    if (t > 1) t = 1;
+    if (Math.abs(t - lastTorchDistance) >= 0.02) {
+      manuscriptRootEl.style.setProperty('--torch-distance', t.toFixed(2));
+      lastTorchDistance = t;
+    }
+  }
 
   function tick() {
     tlX += (mouseX - tlX) * 0.06;
@@ -1200,6 +1207,7 @@
     cY  += (mouseY - cY) * 0.4;
     if (torchlight) torchlight.style.transform = `translate(calc(-50% + ${tlX}px), calc(-50% + ${tlY}px))`;
     if (cursor)     cursor.style.transform     = `translate(calc(-50% + ${cX}px), calc(-50% + ${cY}px))`;
+    maybeUpdateTorchDistance();
     requestAnimationFrame(tick);
   }
   tick();
@@ -1603,11 +1611,26 @@
       const padTop = parseFloat(cs.paddingTop) || 0;
       const columnWidth = rootRect.width - padLeft - padRight;
 
-      // Illumination's local-coords box inside the manuscript page
-      const illLeft = illRect.left - rootRect.left - padLeft;
-      const illTop  = illRect.top  - rootRect.top  - padTop;
-      const illW    = illRect.width;
-      const illH    = illRect.height;
+      // Illumination's local-coords box inside the manuscript page.
+      // Defensive clamps: in some layouts (notably when inline-block spans
+      // inside <pre> are getting laid out unexpectedly), illRect.width has
+      // been observed reading nearly the full column. Cap illW to at most
+      // 35% of column so the wrap region never starves the body.
+      const illLeft   = illRect.left - rootRect.left - padLeft;
+      const illTop    = illRect.top  - rootRect.top  - padTop;
+      const rawIllW   = illRect.width;
+      const illW      = Math.min(rawIllW, columnWidth * 0.35);
+      const illH      = illRect.height;
+
+      // One-time diagnostic log — keep until the illW measurement is understood.
+      if (!window.__manuscriptLogged) {
+        window.__manuscriptLogged = true;
+        console.log('[manuscript]',
+          'columnWidth', columnWidth,
+          'illRect', { left: illRect.left, top: illRect.top, width: illRect.width, height: illRect.height },
+          'rootRect', { left: rootRect.left, top: rootRect.top, width: rootRect.width },
+          'illW(clamped)', illW, 'illH', illH);
+      }
 
       const bodyCS = getComputedStyle(body);
       const lineHeightPx = parseFloat(bodyCS.lineHeight);
@@ -1626,7 +1649,10 @@
         const lineBottom = y + lineHeightPx;
         const collides   = lineBottom > illTop && lineTop < (illTop + illH);
 
-        const maxWidth = collides ? (columnWidth - illW - GUTTER) : columnWidth;
+        const rawMaxWidth = collides ? (columnWidth - illW - GUTTER) : columnWidth;
+        // Never let maxWidth drop below 40% of column — pretext given a
+        // tiny/negative maxWidth returns single-character lines.
+        const maxWidth = Math.max(rawMaxWidth, columnWidth * 0.4);
         const startX   = collides ? (illLeft + illW + GUTTER) : 0;
 
         const range = pretext.layoutNextLineRange(prepared, cursor, maxWidth);
