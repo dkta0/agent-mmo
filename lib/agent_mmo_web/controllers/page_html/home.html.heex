@@ -537,7 +537,7 @@
   .runes-block .attrib .star { color: var(--torch); animation: starFlicker 4s ease-in-out infinite; }
 
   /* ============================================================
-     Manuscript page — pretext-driven verse layout
+     Manuscript page — verse + cursor-reveal mask
      ============================================================ */
   .manuscript-page {
     display: block;
@@ -598,13 +598,9 @@
     animation: glowPulse 5s ease-in-out infinite;
   }
 
-  .manuscript-page.pretext-active .manuscript-body {
-    visibility: hidden;
-  }
-
-  /* Content wrapper around the body + laid-out lines. The CSS radial-gradient
-     mask below is applied here so the reveal effect is scoped to the prose
-     itself — illuminations, corner brackets, and attribution stay unmasked. */
+  /* Content wrapper around the manuscript body. The CSS radial-gradient mask
+     below is applied here so the reveal effect is scoped to the prose itself —
+     illuminations, corner brackets, and attribution stay unmasked. */
   .manuscript-content {
     position: relative;
     /* No opacity transition: the mask-image flips on/off instantly with the
@@ -631,33 +627,7 @@
     );
   }
 
-  .manuscript-line {
-    position: absolute;
-    font-family: var(--serif);
-    font-style: italic;
-    font-weight: 400;
-    font-size: clamp(22px, 3vw, 42px);
-    line-height: 1.45;
-    letter-spacing: 0.005em;
-    color: var(--parchment);
-    pointer-events: none;
-    white-space: nowrap;
-    opacity: 1;
-    transition: opacity 80ms linear;
-  }
-  .manuscript-line .torch {
-    color: var(--torch);
-    font-style: normal;
-    font-weight: 500;
-    text-shadow: 0 0 24px rgba(243,194,102,0.45);
-    animation: glowPulse 5s ease-in-out infinite;
-  }
-
   @media (prefers-reduced-motion: reduce) {
-    .manuscript-line {
-      transition: none;
-      opacity: 1 !important;
-    }
     .manuscript-page .manuscript-content {
       opacity: 1 !important;
       -webkit-mask-image: none !important;
@@ -1062,7 +1032,7 @@
     <span class="marginalia amber" style="bottom:22%; right:9%;">⚜</span>
 
     <div class="station-inner runes-inner">
-      <div class="runes-block manuscript-page reveal r-up" data-pretext-mount>
+      <div class="runes-block manuscript-page reveal r-up" data-manuscript-mount>
         <span class="corner-bl"></span>
         <span class="corner-br"></span>
 
@@ -1223,7 +1193,7 @@
   // per-frame cursor-coordinate-to-local-space transforms.
   let manuscriptRootEl = null;
   function refreshManuscriptRefs() {
-    manuscriptRootEl = document.querySelector('.manuscript-page[data-pretext-mount]');
+    manuscriptRootEl = document.querySelector('.manuscript-page[data-manuscript-mount]');
   }
   refreshManuscriptRefs();
   window.addEventListener('scroll', refreshManuscriptRefs, { passive: true });
@@ -1624,121 +1594,6 @@
     setInterval(regenerateCycle, 26000);
   })();
 
-  // ============================================================
-  // Pretext manuscript verse — station 04
-  // Pretext lays the body out once into a pool of .manuscript-line divs
-  // inside .manuscript-content. The reveal effect itself is pure CSS:
-  // a radial-gradient mask on .manuscript-content driven by two CSS
-  // custom properties that the global pointermove handler updates.
-  // ============================================================
-  (async function manuscriptVerse() {
-    const root = document.querySelector('.manuscript-page[data-pretext-mount]');
-    if (!root) return;
-
-    const body = root.querySelector('.manuscript-body');
-    const content = root.querySelector('.manuscript-content');
-    if (!body || !content) return;
-
-    let pretext;
-    try {
-      pretext = await import('https://esm.sh/@chenglou/pretext@0.0.7');
-    } catch (err) {
-      return; // CDN unreachable — leave the fallback <p> visible
-    }
-
-    const N_LINES_MAX = 20;
-
-    let prepared    = null;
-    let columnWidth = 0;
-    let lineHeightPx = 0;
-    let lineEls     = [];
-
-    function buildFontString(el) {
-      const cs = getComputedStyle(el);
-      return `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
-    }
-
-    function init() {
-      const rootRect = root.getBoundingClientRect();
-      const cs = getComputedStyle(root);
-      const padLeft  = parseFloat(cs.paddingLeft)  || 0;
-      const padRight = parseFloat(cs.paddingRight) || 0;
-      columnWidth = rootRect.width - padLeft - padRight;
-
-      const bodyCS = getComputedStyle(body);
-      lineHeightPx = parseFloat(bodyCS.lineHeight);
-
-      // Prepare pretext once with current font
-      const text = body.textContent.replace(/\s+/g, ' ').trim();
-      const font = buildFontString(body);
-      prepared = pretext.prepareWithSegments(text, font);
-
-      // Ensure line pool exists, parented to .manuscript-content so the mask
-      // scopes correctly.
-      while (lineEls.length < N_LINES_MAX) {
-        const el = document.createElement('div');
-        el.className = 'manuscript-line';
-        el.style.display = 'none';
-        content.appendChild(el);
-        lineEls.push(el);
-      }
-
-      root.classList.add('pretext-active');
-    }
-
-    function layoutFrame() {
-      if (!prepared) return;
-
-      let cur = { segmentIndex: 0, graphemeIndex: 0 };
-      let y = 0;
-      let lineIdx = 0;
-
-      while (lineIdx < N_LINES_MAX) {
-        const range = pretext.layoutNextLineRange(prepared, cur, columnWidth);
-        if (range === null) {
-          for (let k = lineIdx; k < N_LINES_MAX; k++) {
-            lineEls[k].style.display = 'none';
-          }
-          return;
-        }
-
-        const line = pretext.materializeLineRange(prepared, range);
-        const el = lineEls[lineIdx];
-        el.style.display  = 'block';
-        el.style.left     = '0';
-        el.style.top      = y + 'px';
-        el.style.maxWidth = columnWidth + 'px';
-
-        const accentRe = /\bsurvive\b/i;
-        if (accentRe.test(line.text)) {
-          el.innerHTML = line.text.replace(accentRe, m => `<span class="torch">${m}</span>`);
-        } else {
-          el.textContent = line.text;
-        }
-
-        cur = range.end;
-        y += lineHeightPx;
-        lineIdx++;
-      }
-    }
-
-    // Wait for fonts so canvas measurement uses the real metrics
-    if (document.fonts && document.fonts.ready) {
-      await document.fonts.ready;
-    }
-
-    init();
-    layoutFrame();
-
-    let resizeTimer = null;
-    window.addEventListener('resize', () => {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => {
-        init();
-        layoutFrame();
-      }, 200);
-    });
-  })();
 </script>
 
 </body>
