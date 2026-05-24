@@ -1563,41 +1563,63 @@
     }
 
     function layoutBody() {
-      // Clear any previously rendered lines from a prior layout pass
       root.querySelectorAll('.manuscript-line').forEach(el => el.remove());
 
       const rootRect = root.getBoundingClientRect();
+      const illRect = illumination.getBoundingClientRect();
       const cs = getComputedStyle(root);
       const padLeft = parseFloat(cs.paddingLeft) || 0;
       const padRight = parseFloat(cs.paddingRight) || 0;
       const padTop = parseFloat(cs.paddingTop) || 0;
       const columnWidth = rootRect.width - padLeft - padRight;
 
+      // Illumination's local-coords box inside the manuscript page
+      const illLeft = illRect.left - rootRect.left - padLeft;
+      const illTop  = illRect.top  - rootRect.top  - padTop;
+      const illW    = illRect.width;
+      const illH    = illRect.height;
+
       const bodyCS = getComputedStyle(body);
       const lineHeightPx = parseFloat(bodyCS.lineHeight);
       const font = buildFontString(body);
 
-      // Plain text — accent will be wrapped after layout via post-process
       const text = body.textContent.replace(/\s+/g, ' ').trim();
-
       const prepared = pretext.prepareWithSegments(text, font);
 
       let cursor = { segmentIndex: 0, graphemeIndex: 0 };
       let y = 0;
 
       while (true) {
-        const maxWidth = columnWidth;          // no obstacle yet — T5 adds it
-        const startX = 0;
+        // A line "collides" with the illumination if any part of its line-box
+        // overlaps the illumination's vertical range.
+        const lineTop    = y;
+        const lineBottom = y + lineHeightPx;
+        const collides   = lineBottom > illTop && lineTop < (illTop + illH);
+
+        const maxWidth = collides ? (columnWidth - illW - GUTTER) : columnWidth;
+        const startX   = collides ? (illLeft + illW + GUTTER) : 0;
+
         const range = pretext.layoutNextLineRange(prepared, cursor, maxWidth);
         if (range === null) break;
 
         const line = pretext.materializeLineRange(prepared, range);
         const el = document.createElement('div');
         el.className = 'manuscript-line';
-        el.textContent = line.text;
         el.style.left = (padLeft + startX) + 'px';
         el.style.top  = (padTop + y) + 'px';
         el.style.maxWidth = maxWidth + 'px';
+
+        // Post-process: wrap the accent word in a styled span for the glow
+        const accentRe = new RegExp(`\\b${ACCENT_WORD}\\b`, 'i');
+        if (accentRe.test(line.text)) {
+          el.innerHTML = line.text.replace(
+            accentRe,
+            (match) => `<span class="torch">${match}</span>`
+          );
+        } else {
+          el.textContent = line.text;
+        }
+
         root.appendChild(el);
 
         cursor = range.end;
