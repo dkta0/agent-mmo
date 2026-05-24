@@ -116,7 +116,7 @@
     z-index: 2;
     width: 600px; height: 600px;
     border-radius: 50%;
-    left: 50%; top: 50%;
+    left: 0; top: 0;
     transform: translate(-50%, -50%);
     background: radial-gradient(closest-side,
       rgba(243,194,102,0.12) 0%,
@@ -1701,24 +1701,22 @@
         const lineMidY = y + lineHeightPx / 2;
         let maxWidth, startX, opacity;
 
+        // Lines always lay out at full column width — only opacity varies with
+        // cursor proximity. (Earlier iteration used chord-width reflow inside
+        // the disk, but that caused the prose to bunch inside the cursor disk
+        // with nothing left over for OUT-mode lines. Opacity-only keeps the
+        // static layout intact while still surfacing the reveal effect.)
+        maxWidth = columnWidth;
+        startX   = 0;
+
         if (useStatic) {
-          maxWidth = columnWidth;
-          startX   = 0;
           opacity  = 1.0;
         } else {
           const dy = Math.abs(lineMidY - cursorYLocal);
           if (dy > R) {
-            maxWidth = columnWidth;
-            startX   = 0;
-            opacity  = BASE_OPACITY;
+            opacity = BASE_OPACITY;
           } else {
-            const chord = 2 * Math.sqrt(R*R - dy*dy);
-            maxWidth = Math.max(chord, MIN_WIDTH);
-            startX   = cursorXLocal - maxWidth / 2;
-            // Clamp startX so the line stays inside the column
-            if (startX < 0) startX = 0;
-            if (startX + maxWidth > columnWidth) startX = columnWidth - maxWidth;
-            // Smooth opacity from full at the center to BASE at the rim
+            // Smooth ramp from full at cursor's Y to BASE_OPACITY at the rim
             opacity = BASE_OPACITY + (1.0 - BASE_OPACITY) * (1.0 - dy / R);
           }
         }
