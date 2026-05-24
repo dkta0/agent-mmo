@@ -1,0 +1,8 @@
+# Ignore postgres data directory (root-owned, not needed in build context)
+data/
+
+# Common ignores
+.git
+_build
+deps
+*.log
