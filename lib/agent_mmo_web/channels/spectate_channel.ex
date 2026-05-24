@@ -35,8 +35,16 @@ defmodule AgentMmoWeb.SpectateChannel do
     else
       Phoenix.PubSub.subscribe(AgentMmo.PubSub, "zone:#{zone_id}")
     end
+
     socket = assign(socket, :zone_id, zone_id)
-    {:ok, %{status: "ok", protocol_version: @supported_protocol}, socket}
+
+    reply = %{
+      status: "ok",
+      protocol_version: @supported_protocol,
+      current_run: AgentMmo.SpectateTracker.current_run()
+    }
+
+    {:ok, reply, socket}
   end
 
   # Forward tick broadcasts to the client
@@ -46,9 +54,30 @@ defmodule AgentMmoWeb.SpectateChannel do
     {:noreply, socket}
   end
 
-  # Reject any action messages
+  # Forward spectator-room updates to the client as `current_run`
+  def handle_info({:spectate_update, run}, socket) do
+    push(socket, "current_run", %{run: run})
+    {:noreply, socket}
+  end
+
+  # Reject any action messages (read-only channel)
   @impl true
   def handle_in("action:" <> _action, _payload, socket) do
     {:reply, {:error, %{reason: "spectate_channel_read_only"}}, socket}
+  end
+
+  # Snapshot queries
+  def handle_in("get:current_run", _payload, socket) do
+    {:reply, {:ok, %{run: AgentMmo.SpectateTracker.current_run()}}, socket}
+  end
+
+  def handle_in("get:ranked_runs", payload, socket) do
+    limit =
+      case Map.get(payload, "limit") do
+        n when is_integer(n) and n > 0 -> min(n, 20)
+        _ -> 10
+      end
+
+    {:reply, {:ok, %{runs: AgentMmo.SpectateTracker.ranked_runs(limit)}}, socket}
   end
 end
