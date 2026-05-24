@@ -1204,6 +1204,21 @@
     cY  += (mouseY - cY) * 0.4;
     if (torchlight) torchlight.style.transform = `translate(calc(-50% + ${tlX}px), calc(-50% + ${tlY}px))`;
     if (cursor)     cursor.style.transform     = `translate(calc(-50% + ${cX}px), calc(-50% + ${cY}px))`;
+
+    if (window.__manuscriptLayoutFrame) {
+      const c = window.__manuscriptCursor;
+      const cx = c ? c.x : null;
+      const cy = c ? c.y : null;
+      const movedX = Math.abs((cx == null ? -9999 : cx) - (window.__lastManuscriptCursorX == null ? -9999 : window.__lastManuscriptCursorX));
+      const movedY = Math.abs((cy == null ? -9999 : cy) - (window.__lastManuscriptCursorY == null ? -9999 : window.__lastManuscriptCursorY));
+      const cursorEnteredOrLeft = (cx == null) !== (window.__lastManuscriptCursorX == null);
+      if (cursorEnteredOrLeft || movedX >= 2 || movedY >= 2) {
+        window.__lastManuscriptCursorX = cx;
+        window.__lastManuscriptCursorY = cy;
+        window.__manuscriptLayoutFrame();
+      }
+    }
+
     requestAnimationFrame(tick);
   }
   tick();
@@ -1743,6 +1758,7 @@
     }
 
     init();
+    window.__manuscriptLayoutFrame = layoutFrame;
     viewportIO.observe(root);
     layoutFrame();
 
