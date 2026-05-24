@@ -1179,6 +1179,22 @@
   window.addEventListener('pointermove', (e) => {
     mouseX = e.clientX;
     mouseY = e.clientY;
+
+    // Bridge cursor coords to the manuscriptVerse IIFE. Expose rootRect-relative
+    // coords (without padding subtraction — the IIFE finishes the transform).
+    // null when cursor is outside the manuscript-page's bounding box.
+    if (manuscriptRootEl) {
+      const r = manuscriptRootEl.getBoundingClientRect();
+      if (e.clientX >= r.left && e.clientX <= r.right &&
+          e.clientY >= r.top  && e.clientY <= r.bottom) {
+        window.__manuscriptCursor = {
+          x: e.clientX - r.left,
+          y: e.clientY - r.top
+        };
+      } else {
+        window.__manuscriptCursor = null;
+      }
+    }
   });
 
   function tick() {
@@ -1591,6 +1607,9 @@
     let lastCursorX    = -9999;
     let lastCursorY    = -9999;
     let lastUseStatic  = null;
+    let reducedMotion  = false;
+    let mobile         = false;
+    let inViewport     = false;
 
     function buildFontString(el) {
       const cs = getComputedStyle(el);
@@ -1624,6 +1643,31 @@
       }
 
       root.classList.add('pretext-active');
+    }
+
+    const reducedMotionMQ = window.matchMedia('(prefers-reduced-motion: reduce)');
+    reducedMotion = reducedMotionMQ.matches;
+    reducedMotionMQ.addEventListener('change', e => { reducedMotion = e.matches; });
+
+    const mobileMQ = window.matchMedia('(max-width: 880px)');
+    mobile = mobileMQ.matches;
+    mobileMQ.addEventListener('change', e => { mobile = e.matches; });
+
+    const viewportIO = new IntersectionObserver((entries) => {
+      for (const entry of entries) inViewport = entry.isIntersecting;
+    }, { threshold: 0 });
+
+    // Read cursor coords (set by the global pointermove handler) and translate
+    // from rootRect-relative to local-content-space (padding subtracted).
+    function refreshCursorLocal() {
+      const c = window.__manuscriptCursor;
+      if (c == null) {
+        cursorXLocal = null;
+        cursorYLocal = null;
+        return;
+      }
+      cursorXLocal = c.x - padLeft;
+      cursorYLocal = c.y - padTop;
     }
 
     function layoutFrame() {
@@ -1679,6 +1723,7 @@
     }
 
     init();
+    viewportIO.observe(root);
     layoutFrame();
 
     let resizeTimer = null;
