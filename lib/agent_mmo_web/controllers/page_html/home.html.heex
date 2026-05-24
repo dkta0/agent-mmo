@@ -1673,23 +1673,43 @@
     function layoutFrame() {
       if (!prepared) return;
 
-      // useStatic path: static full-column-width, full opacity. This is what
-      // reduced-motion, mobile, off-viewport, and no-cursor users see — and
-      // also what shows until CT5 wires up the cursor-aware IN/OUT modes.
-      const useStatic = true;
+      refreshCursorLocal();
+
+      const useStatic = reducedMotion || mobile || !inViewport
+                     || cursorXLocal == null || cursorYLocal == null;
 
       let cur = { segmentIndex: 0, graphemeIndex: 0 };
       let y = 0;
       let lineIdx = 0;
 
       while (lineIdx < N_LINES_MAX) {
-        const maxWidth = columnWidth;
-        const startX   = 0;
-        const opacity  = 1.0;
+        const lineMidY = y + lineHeightPx / 2;
+        let maxWidth, startX, opacity;
+
+        if (useStatic) {
+          maxWidth = columnWidth;
+          startX   = 0;
+          opacity  = 1.0;
+        } else {
+          const dy = Math.abs(lineMidY - cursorYLocal);
+          if (dy > R) {
+            maxWidth = columnWidth;
+            startX   = 0;
+            opacity  = BASE_OPACITY;
+          } else {
+            const chord = 2 * Math.sqrt(R*R - dy*dy);
+            maxWidth = Math.max(chord, MIN_WIDTH);
+            startX   = cursorXLocal - maxWidth / 2;
+            // Clamp startX so the line stays inside the column
+            if (startX < 0) startX = 0;
+            if (startX + maxWidth > columnWidth) startX = columnWidth - maxWidth;
+            // Smooth opacity from full at the center to BASE at the rim
+            opacity = BASE_OPACITY + (1.0 - BASE_OPACITY) * (1.0 - dy / R);
+          }
+        }
 
         const range = pretext.layoutNextLineRange(prepared, cur, maxWidth);
         if (range === null) {
-          // Hide remaining pool slots
           for (let k = lineIdx; k < N_LINES_MAX; k++) {
             lineEls[k].style.display = 'none';
           }
