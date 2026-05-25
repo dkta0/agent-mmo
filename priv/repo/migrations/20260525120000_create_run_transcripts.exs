@@ -7,7 +7,7 @@ defmodule AgentMmo.Repo.Migrations.CreateRunTranscripts do
       add :tick_no,    :integer, null: false
       add :action,     :map,     null: false
       add :tick,       :map,     null: false
-      add :inserted_at, :utc_datetime, null: false, default: fragment("NOW()")
+      timestamps(type: :utc_datetime, updated_at: false)
     end
 
     create unique_index(:run_transcripts, [:benchmark_run_id, :tick_no])
