@@ -305,7 +305,13 @@ defmodule AgentMmoWeb.GameChannel do
           |> Enum.reverse()
           |> Enum.with_index(1)
           |> Enum.each(fn {{action, tick}, idx} ->
-            AgentMmo.RunTranscripts.append(run.id, idx, %{action: action, tick: tick})
+            case AgentMmo.RunTranscripts.append(run.id, idx, %{action: action, tick: tick}) do
+              {:ok, _} ->
+                :ok
+              {:error, reason} ->
+                require Logger
+                Logger.warning("Failed to persist transcript row #{idx} for run #{run.id}: #{inspect(reason)}")
+            end
           end)
 
           Phoenix.PubSub.broadcast(AgentMmo.PubSub, "leaderboard:#{scenario}", {:leaderboard_updated, scenario})
