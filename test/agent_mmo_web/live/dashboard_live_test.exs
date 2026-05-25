@@ -46,14 +46,14 @@ defmodule AgentMmoWeb.DashboardLiveTest do
     test "shows key form on button click", %{conn: conn} do
       {conn, _user} = register_and_log_in(conn)
       {:ok, lv, _html} = live(conn, "/dashboard")
-      html = lv |> element("button", "+ Generate new key") |> render_click()
+      html = lv |> element("button", "+ Generate Key") |> render_click()
       assert html =~ "Agent name"
     end
 
     test "hides form on cancel", %{conn: conn} do
       {conn, _user} = register_and_log_in(conn)
       {:ok, lv, _html} = live(conn, "/dashboard")
-      lv |> element("button", "+ Generate new key") |> render_click()
+      lv |> element("button", "+ Generate Key") |> render_click()
       html = lv |> element("button", "Cancel") |> render_click()
       refute html =~ ~r/name="agent_name"/
     end
@@ -63,7 +63,7 @@ defmodule AgentMmoWeb.DashboardLiveTest do
     test "generates key and shows it once", %{conn: conn} do
       {conn, _user} = register_and_log_in(conn)
       {:ok, lv, _html} = live(conn, "/dashboard")
-      lv |> element("button", "+ Generate new key") |> render_click()
+      lv |> element("button", "+ Generate Key") |> render_click()
 
       html =
         lv
@@ -78,17 +78,17 @@ defmodule AgentMmoWeb.DashboardLiveTest do
     test "can dismiss the generated key", %{conn: conn} do
       {conn, _user} = register_and_log_in(conn)
       {:ok, lv, _html} = live(conn, "/dashboard")
-      lv |> element("button", "+ Generate new key") |> render_click()
+      lv |> element("button", "+ Generate Key") |> render_click()
       lv |> form("form[phx-submit=generate_key]", %{agent_name: "dismiss-test"}) |> render_submit()
 
-      html = lv |> element("button", "I've saved it — dismiss") |> render_click()
+      html = lv |> element("button", "I've saved it, dismiss") |> render_click()
       refute html =~ "New API key generated"
     end
 
     test "shows error for blank agent_name", %{conn: conn} do
       {conn, _user} = register_and_log_in(conn)
       {:ok, lv, _html} = live(conn, "/dashboard")
-      lv |> element("button", "+ Generate new key") |> render_click()
+      lv |> element("button", "+ Generate Key") |> render_click()
       html = lv |> form("form[phx-submit=generate_key]", %{agent_name: "  "}) |> render_submit()
       assert html =~ "blank"
     end
@@ -97,7 +97,12 @@ defmodule AgentMmoWeb.DashboardLiveTest do
   describe "revoke key" do
     test "can revoke a key", %{conn: conn} do
       {conn, user} = register_and_log_in(conn)
-      {:ok, _key} = AgentMmo.Auth.issue_key_for_user(user.id, "my-agent")
+      {:ok, {_plaintext, _api_key}} =
+        AgentMmo.Auth.issue_key(%{
+          "agent_name" => "my-agent",
+          "owner" => user.email,
+          "user_id" => user.id
+        })
 
       {:ok, lv, html} = live(conn, "/dashboard")
       assert html =~ "my-agent"
@@ -131,7 +136,7 @@ defmodule AgentMmoWeb.DashboardLiveTest do
     test "switching to roll-your-own shows python snippet", %{conn: conn} do
       {conn, _user} = register_and_log_in(conn)
       {:ok, lv, _html} = live(conn, "/dashboard")
-      html = lv |> element("button[phx-value-tab=roll-your-own]") |> render_click()
+      html = lv |> element("button[phx-value-tab=diy]") |> render_click()
       assert html =~ "TavernBenchClient"
     end
   end
