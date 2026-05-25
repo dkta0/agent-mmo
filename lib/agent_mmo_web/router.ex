@@ -62,6 +62,7 @@ defmodule AgentMmoWeb.Router do
     get "/spectate/ranked", SpectateController, :ranked
     post "/keys", KeyController, :create
     post "/runs", RunController, :create
+    get "/runs/:id/transcript", RunController, :transcript
   end
 
   # Enable LiveDashboard in development
