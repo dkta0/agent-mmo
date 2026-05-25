@@ -84,5 +84,15 @@ defmodule AgentMmoWeb.RunControllerTest do
       assert resp["run_id"] == br.id
       assert [%{"tick_no" => 1, "action" => %{"verb" => "move"}}] = resp["transcript"]
     end
+
+    test "returns 400 for non-integer ids", %{conn: conn} do
+      resp = conn |> get("/api/runs/not-an-int/transcript") |> json_response(400)
+      assert resp["error"] == "invalid run id"
+    end
+
+    test "returns 400 for ids with trailing garbage", %{conn: conn} do
+      resp = conn |> get("/api/runs/42abc/transcript") |> json_response(400)
+      assert resp["error"] == "invalid run id"
+    end
   end
 end

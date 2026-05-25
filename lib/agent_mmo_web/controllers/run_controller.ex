@@ -39,7 +39,7 @@ defmodule AgentMmoWeb.RunController do
 
   def transcript(conn, %{"id" => id}) do
     case Integer.parse(id) do
-      {run_id, _} ->
+      {run_id, ""} ->
         entries =
           AgentMmo.RunTranscripts.list_for_run(run_id)
           |> Enum.map(&Map.take(&1, [:tick_no, :action, :tick, :inserted_at]))
@@ -48,7 +48,7 @@ defmodule AgentMmoWeb.RunController do
         |> put_status(200)
         |> json(%{run_id: run_id, transcript: entries})
 
-      :error ->
+      _ ->
         conn
         |> put_status(400)
         |> json(%{error: "invalid run id"})
