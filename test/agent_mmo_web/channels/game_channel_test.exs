@@ -373,4 +373,37 @@ defmodule AgentMmoWeb.GameChannelTest do
     assert_push "tick", payload, 2000
     assert seq in payload.acked_seqs
   end
+
+  # ---- Run transcript recording ----
+
+  test "completing a quest writes one RunTranscript row per recorded tick", %{socket: socket, zone_id: zone_id} do
+    {:ok, _, socket} =
+      subscribe_and_join(socket, GameChannel, "zone:#{zone_id}", %{
+        "protocol_version" => "1.0"
+      })
+
+    # Push an action so the channel has a pending_action to pair with the next tick.
+    ref = push(socket, "action:move", %{"direction" => "north", "seq" => 1})
+    assert_reply ref, :ok, %{acked: true}
+
+    # Wait for at least one tick to arrive at the channel so the buffer is populated.
+    assert_push "tick", _payload, 2000
+
+    # Simulate quest_complete arriving at the channel process (the same path
+    # ZoneTicker uses when a player finishes a quest).
+    send(socket.channel_pid, {:player_event, %{
+      type: "quest_complete",
+      quest_id: "q",
+      final_score: 5,
+      steps_taken: 1
+    }})
+
+    # Wait for the channel to handle the event and flush transcripts.
+    assert_push "quest_complete", _payload, 2000
+
+    [run] = AgentMmo.Repo.all(AgentMmo.BenchmarkRun)
+    transcripts = AgentMmo.RunTranscripts.list_for_run(run.id)
+    assert length(transcripts) >= 1
+    assert hd(transcripts).action["action"] == "move"
+  end
 end
