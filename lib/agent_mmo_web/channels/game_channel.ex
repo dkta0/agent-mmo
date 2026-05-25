@@ -33,6 +33,8 @@ defmodule AgentMmoWeb.GameChannel do
         |> assign(:player_id, player_id)
         |> assign(:last_npc_id, nil)
         |> assign(:connected_at, System.monotonic_time(:millisecond))
+        |> assign(:transcript_buffer, [])
+        |> assign(:pending_action, nil)
 
       initial_score = case AgentMmo.Player.PlayerSession.get_state(player_id) do
         {:ok, ps} -> Map.get(ps, :score, 0)
@@ -60,7 +62,7 @@ defmodule AgentMmoWeb.GameChannel do
   @impl true
   def handle_in("action:move", %{"direction" => direction} = payload, socket) do
     if direction in @valid_directions do
-      ZoneTicker.enqueue_action(socket.assigns.zone_id, socket.assigns.player_id, Map.put(payload, "action", "move"))
+      socket = enqueue(socket, Map.put(payload, "action", "move"))
       {:reply, {:ok, %{acked: true}}, socket}
     else
       {:reply, {:error, %{code: "INVALID_DIRECTION"}}, socket}
@@ -72,7 +74,7 @@ defmodule AgentMmoWeb.GameChannel do
   end
 
   def handle_in("action:enter", %{"target" => _} = payload, socket) do
-    enqueue(socket, Map.put(payload, "action", "enter"))
+    socket = enqueue(socket, Map.put(payload, "action", "enter"))
     {:reply, {:ok, %{acked: true}}, socket}
   end
 
@@ -81,7 +83,7 @@ defmodule AgentMmoWeb.GameChannel do
   end
 
   def handle_in("action:speak", %{"target" => _} = payload, socket) do
-    enqueue(socket, Map.put(payload, "action", "speak"))
+    socket = enqueue(socket, Map.put(payload, "action", "speak"))
     {:reply, {:ok, %{acked: true}}, socket}
   end
 
@@ -92,7 +94,7 @@ defmodule AgentMmoWeb.GameChannel do
   def handle_in("action:reply", %{"choice" => _choice_id} = payload, socket) do
     npc_id = socket.assigns[:last_npc_id]
     action = payload |> Map.put("action", "reply") |> Map.put("npc_id", npc_id)
-    enqueue(socket, action)
+    socket = enqueue(socket, action)
     {:reply, {:ok, %{acked: true}}, socket}
   end
 
@@ -101,7 +103,7 @@ defmodule AgentMmoWeb.GameChannel do
   end
 
   def handle_in("action:examine", %{"target" => _} = payload, socket) do
-    enqueue(socket, Map.put(payload, "action", "examine"))
+    socket = enqueue(socket, Map.put(payload, "action", "examine"))
     {:reply, {:ok, %{acked: true}}, socket}
   end
 
@@ -110,7 +112,7 @@ defmodule AgentMmoWeb.GameChannel do
   end
 
   def handle_in("action:pickup", %{"target" => _} = payload, socket) do
-    enqueue(socket, Map.put(payload, "action", "pickup"))
+    socket = enqueue(socket, Map.put(payload, "action", "pickup"))
     {:reply, {:ok, %{acked: true}}, socket}
   end
 
@@ -119,7 +121,7 @@ defmodule AgentMmoWeb.GameChannel do
   end
 
   def handle_in("action:drop", %{"item" => item} = payload, socket) do
-    enqueue(socket, payload |> Map.put("action", "drop") |> Map.put("target", item))
+    socket = enqueue(socket, payload |> Map.put("action", "drop") |> Map.put("target", item))
     {:reply, {:ok, %{acked: true}}, socket}
   end
 
@@ -128,7 +130,7 @@ defmodule AgentMmoWeb.GameChannel do
   end
 
   def handle_in("action:use", %{"item" => _} = payload, socket) do
-    enqueue(socket, Map.put(payload, "action", "use"))
+    socket = enqueue(socket, Map.put(payload, "action", "use"))
     {:reply, {:ok, %{acked: true}}, socket}
   end
 
@@ -137,7 +139,7 @@ defmodule AgentMmoWeb.GameChannel do
   end
 
   def handle_in("action:attack", %{"target" => _} = payload, socket) do
-    enqueue(socket, Map.put(payload, "action", "attack"))
+    socket = enqueue(socket, Map.put(payload, "action", "attack"))
     {:reply, {:ok, %{acked: true}}, socket}
   end
 
@@ -146,27 +148,27 @@ defmodule AgentMmoWeb.GameChannel do
   end
 
   def handle_in("action:flee", payload, socket) do
-    enqueue(socket, Map.put(payload, "action", "flee"))
+    socket = enqueue(socket, Map.put(payload, "action", "flee"))
     {:reply, {:ok, %{acked: true}}, socket}
   end
 
   def handle_in("action:inventory", payload, socket) do
-    enqueue(socket, Map.put(payload, "action", "inventory"))
+    socket = enqueue(socket, Map.put(payload, "action", "inventory"))
     {:reply, {:ok, %{acked: true}}, socket}
   end
 
   def handle_in("action:quests", payload, socket) do
-    enqueue(socket, Map.put(payload, "action", "quests"))
+    socket = enqueue(socket, Map.put(payload, "action", "quests"))
     {:reply, {:ok, %{acked: true}}, socket}
   end
 
   def handle_in("action:look", payload, socket) do
-    enqueue(socket, Map.put(payload, "action", "look"))
+    socket = enqueue(socket, Map.put(payload, "action", "look"))
     {:reply, {:ok, %{acked: true}}, socket}
   end
 
   def handle_in("action:wait", payload, socket) do
-    enqueue(socket, Map.put(payload, "action", "wait"))
+    socket = enqueue(socket, Map.put(payload, "action", "wait"))
     {:reply, {:ok, %{acked: true}}, socket}
   end
 
@@ -225,6 +227,20 @@ defmodule AgentMmoWeb.GameChannel do
       end
 
     push(socket, "tick", enriched)
+
+    socket =
+      case socket.assigns[:pending_action] do
+        nil ->
+          socket
+
+        action ->
+          buffer = socket.assigns[:transcript_buffer] || []
+
+          socket
+          |> assign(:transcript_buffer, [{action, enriched} | buffer])
+          |> assign(:pending_action, nil)
+      end
+
     {:noreply, socket}
   end
 
@@ -270,6 +286,7 @@ defmodule AgentMmoWeb.GameChannel do
 
   defp enqueue(socket, action) do
     ZoneTicker.enqueue_action(socket.assigns.zone_id, socket.assigns.player_id, action)
+    assign(socket, :pending_action, action)
   end
 
   defp persist_benchmark_run(socket, payload) do
@@ -282,8 +299,23 @@ defmodule AgentMmoWeb.GameChannel do
       duration_ms = System.monotonic_time(:millisecond) - socket.assigns.connected_at
 
       case AgentMmo.Leaderboard.record_run(api_key_id, scenario, score, steps, duration_ms) do
-        {:ok, _run} ->
+        {:ok, run} ->
+          socket.assigns
+          |> Map.get(:transcript_buffer, [])
+          |> Enum.reverse()
+          |> Enum.with_index(1)
+          |> Enum.each(fn {{action, tick}, idx} ->
+            case AgentMmo.RunTranscripts.append(run.id, idx, %{action: action, tick: tick}) do
+              {:ok, _} ->
+                :ok
+              {:error, reason} ->
+                require Logger
+                Logger.warning("Failed to persist transcript row #{idx} for run #{run.id}: #{inspect(reason)}")
+            end
+          end)
+
           Phoenix.PubSub.broadcast(AgentMmo.PubSub, "leaderboard:#{scenario}", {:leaderboard_updated, scenario})
+
         {:error, reason} ->
           require Logger
           Logger.warning("Failed to persist benchmark run: #{inspect(reason)}")

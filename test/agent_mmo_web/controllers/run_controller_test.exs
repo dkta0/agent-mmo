@@ -54,4 +54,45 @@ defmodule AgentMmoWeb.RunControllerTest do
       assert %{"errors" => _errors} = json_response(conn, 422)
     end
   end
+
+  describe "GET /api/runs/:id/transcript" do
+    test "GET /api/runs/:id/transcript returns rows in tick order", %{conn: conn} do
+      {:ok, ak} =
+        AgentMmo.Repo.insert(%AgentMmo.ApiKey{
+          agent_name: "t",
+          owner: "o",
+          key_hash: "h",
+          key_prefix: "tb_xx"
+        })
+
+      {:ok, br} =
+        AgentMmo.Repo.insert(%AgentMmo.BenchmarkRun{
+          api_key_id: ak.id,
+          scenario: "x",
+          score: 1,
+          steps: 1,
+          duration_ms: 10
+        })
+
+      {:ok, _} =
+        AgentMmo.RunTranscripts.append(br.id, 1, %{
+          action: %{verb: "move"},
+          tick: %{score: 1}
+        })
+
+      resp = conn |> get("/api/runs/#{br.id}/transcript") |> json_response(200)
+      assert resp["run_id"] == br.id
+      assert [%{"tick_no" => 1, "action" => %{"verb" => "move"}}] = resp["transcript"]
+    end
+
+    test "returns 400 for non-integer ids", %{conn: conn} do
+      resp = conn |> get("/api/runs/not-an-int/transcript") |> json_response(400)
+      assert resp["error"] == "invalid run id"
+    end
+
+    test "returns 400 for ids with trailing garbage", %{conn: conn} do
+      resp = conn |> get("/api/runs/42abc/transcript") |> json_response(400)
+      assert resp["error"] == "invalid run id"
+    end
+  end
 end
