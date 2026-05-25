@@ -45,6 +45,7 @@ defmodule AgentMmo.MixProject do
       {:bandit, "~> 1.5"},
       {:yaml_elixir, "~> 2.9"},
       {:phoenix_live_view, "~> 1.0"},
+      {:lazy_html, ">= 0.1.0", only: :test},
       {:bcrypt_elixir, "~> 3.0"},
       {:comeonin, "~> 5.3"}
     ]

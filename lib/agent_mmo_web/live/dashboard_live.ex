@@ -1,6 +1,8 @@
 defmodule AgentMmoWeb.DashboardLive do
   use AgentMmoWeb, :live_view
 
+  on_mount {AgentMmoWeb.UserAuth, :ensure_authenticated}
+
   alias AgentMmo.{Auth, Runs}
 
   @impl true
