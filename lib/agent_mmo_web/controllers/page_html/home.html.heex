@@ -69,42 +69,15 @@
      Roguelike ambient background — procedurally generated dungeons
      drift behind the page. Subtle, peripheral, never the subject.
      ============================================================ */
-  .rogue-bg {
+  /* roguelike canvas background */
+  #rogueBg {
     position: fixed;
     inset: 0;
     z-index: 1;
-    margin: 0;
-    padding: 0;
-    font-family: var(--mono);
-    font-size: 14px;
-    line-height: 16px;
-    letter-spacing: 0;
-    color: var(--parchment-ghost);
-    white-space: pre;
-    overflow: hidden;
+    opacity: 0.36;
     pointer-events: none;
     user-select: none;
-    opacity: 0.36;
     transition: opacity 2.8s ease;
-    will-change: contents;
-  }
-  .rogue-bg .v { color: transparent; }
-  .rogue-bg .f { color: #1c1d1e; }
-  .rogue-bg .w { color: #2e2d23; }
-  .rogue-bg .r { color: #28241d; }
-  .rogue-bg .d { color: var(--torch-deep); opacity: 0.6; }
-  .rogue-bg .s { color: #2e2d23; }
-  .rogue-bg .t { color: var(--torch-deep); }
-  .rogue-bg .m { color: #2d3a2a; }
-  .rogue-bg .x { color: #3a1a10; }
-  .rogue-bg .a {
-    color: var(--torch);
-    text-shadow: 0 0 8px var(--torch-deep), 0 0 16px rgba(224,166,74,0.35);
-    animation: starFlicker 2.6s ease-in-out infinite;
-  }
-  .rogue-bg .g {
-    color: var(--torch-deep);
-    animation: starFlicker 5s ease-in-out infinite;
   }
 
   /* mouse-following torchlight */
@@ -888,7 +861,7 @@
 </head>
 <body>
 
-<pre class="rogue-bg" id="rogueBg" aria-hidden="true"></pre>
+<canvas id="rogueBg" aria-hidden="true"></canvas>
 <div class="torchlight" id="torchlight"></div>
 <div class="cursor" id="cursor"></div>
 <div class="embers" id="embers"></div>
@@ -1221,23 +1194,35 @@
     }
   });
 
-  function tick() {
+  let lastTick = 0;
+  let rafPaused = false;
+  function tick(ts) {
+    requestAnimationFrame(tick);
+    if (rafPaused) return;
+    // throttle to ~30fps — cursor/torchlight don't need 60fps
+    if (ts - lastTick < 28) return;
+    lastTick = ts;
     tlX += (mouseX - tlX) * 0.06;
     tlY += (mouseY - tlY) * 0.06;
     cX  += (mouseX - cX) * 0.4;
     cY  += (mouseY - cY) * 0.4;
     if (torchlight) torchlight.style.transform = `translate(calc(-50% + ${tlX}px), calc(-50% + ${tlY}px))`;
     if (cursor)     cursor.style.transform     = `translate(calc(-50% + ${cX}px), calc(-50% + ${cY}px))`;
-
-    requestAnimationFrame(tick);
   }
-  tick();
+  requestAnimationFrame(tick);
 
   document.querySelectorAll('a, [data-hover]').forEach(el => {
     el.addEventListener('mouseenter', () => document.body.classList.add('hover'));
     el.addEventListener('mouseleave', () => document.body.classList.remove('hover'));
   });
 
+
+  // ============================================================
+  // Pause all loops when tab is hidden
+  // ============================================================
+  let _stepInterval = null;
+  let _regenInterval = null;
+  let _emberInterval = null;
 
   // ============================================================
   // Ember particles
@@ -1261,8 +1246,12 @@
     embersWrap.appendChild(e);
     setTimeout(() => e.remove(), dur * 1000 + 200);
   }
-  for (let i = 0; i < 8; i++) setTimeout(spawnEmber, i * 800);
-  setInterval(spawnEmber, 700);
+  for (let i = 0; i < 5; i++) setTimeout(spawnEmber, i * 1000);
+  const MAX_EMBERS = 12;
+  function spawnEmberCapped() {
+    if (embersWrap && embersWrap.childElementCount < MAX_EMBERS) spawnEmber();
+  }
+  _emberInterval = setInterval(spawnEmberCapped, 1200);
 
 
   // ============================================================
@@ -1360,21 +1349,50 @@
 
 
   // ============================================================
-  // Roguelike ambient background — procedurally generated dungeons
-  // drift behind the page. The user is wandering THROUGH a dungeon
-  // they can't quite see; only its shadow.
+  // Pause all loops when tab is hidden
+  // ============================================================
+  document.addEventListener('visibilitychange', () => {
+    rafPaused = document.hidden;
+    if (document.hidden) {
+      clearInterval(_stepInterval);
+      clearInterval(_regenInterval);
+      clearInterval(_emberInterval);
+    } else {
+      _stepInterval = setInterval(step, 360);
+      _regenInterval = setInterval(regenerateCycle, 26000);
+      _emberInterval = setInterval(spawnEmber, 1200);
+    }
+  });
+
+  // ============================================================
+  // Roguelike ambient background — canvas renderer
   // ============================================================
   (function rogueBackground() {
-    const el = document.getElementById('rogueBg');
-    if (!el) return;
+    const canvas = document.getElementById('rogueBg');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
 
     const CHAR_W = 8.43;
     const CHAR_H = 16;
+    const FONT = '14px "IBM Plex Mono", ui-monospace, monospace';
+
+    // Color map per cell class
+    const COLOR = {
+      f: '#1c1d1e',
+      w: '#2e2d23',
+      r: '#28241d',
+      d: 'rgba(106,67,19,0.6)',
+      s: '#2e2d23',
+      t: '#6a4313',
+      m: '#2d3a2a',
+      x: '#3a1a10',
+      a: '#e0a64a',  // wanderer
+      g: '#6a4313',  // glyph twinkler
+    };
 
     let cols = 0, rows = 0;
     let grid = [];
     let wanderers = [];
-    let glyphTwinklers = [];
 
     const FLOOR = '.';
     const RUBBLE = '#';
@@ -1477,13 +1495,12 @@
         const a = rooms[i - 1], b = rooms[i];
         carveCorridor(a.cy, a.cx, b.cy, b.cx);
       }
-      glyphTwinklers = [];
       rooms.forEach(r => {
         if (chance(0.5))  placeInRoom(r.rx, r.ry, r.rw, r.rh, pick(['T','$','*']), 't');
         if (chance(0.55)) placeInRoom(r.rx, r.ry, r.rw, r.rh, pick(['g','k','r']), 'm');
         if (chance(0.22)) placeInRoom(r.rx, r.ry, r.rw, r.rh, pick(['D','H','Z']), 'm');
         if (chance(0.18)) placeInRoom(r.rx, r.ry, r.rw, r.rh, '%', 'x');
-        if (chance(0.16)) { const p = placeInRoom(r.rx, r.ry, r.rw, r.rh, '*', 'g'); if (p) glyphTwinklers.push(p); }
+        if (chance(0.16)) placeInRoom(r.rx, r.ry, r.rw, r.rh, '*', 'g');
         if (chance(0.12)) placeInRoom(r.rx, r.ry, r.rw, r.rh, '<', 's');
         if (chance(0.10)) placeInRoom(r.rx, r.ry, r.rw, r.rh, '>', 's');
         if (chance(0.30)) {
@@ -1503,39 +1520,29 @@
     }
 
     function render() {
-      const out = new Array(rows);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.font = FONT;
+      ctx.textBaseline = 'top';
+
       const wmap = new Map();
-      wanderers.forEach(w => wmap.set(w.y + ',' + w.x, true));
+      wanderers.forEach(w => wmap.set(w.y * 10000 + w.x, true));
 
       for (let y = 0; y < rows; y++) {
-        let line = '';
-        let prevCls = null;
-        let buf = '';
-        const flush = () => {
-          if (buf.length === 0) return;
-          if (prevCls === 'v') line += buf;
-          else line += '<span class="' + prevCls + '">' + buf + '</span>';
-          buf = '';
-        };
         for (let x = 0; x < cols; x++) {
           let ch, cls;
-          if (wmap.has(y + ',' + x)) {
+          if (wmap.has(y * 10000 + x)) {
             ch = '@'; cls = 'a';
           } else {
             const c = grid[y][x];
             ch = c.ch; cls = c.cls;
           }
-          if (ch === '<') ch = '&lt;';
-          else if (ch === '>') ch = '&gt;';
-          else if (ch === '&') ch = '&amp;';
-
-          if (cls !== prevCls) { flush(); prevCls = cls; }
-          buf += ch;
+          if (cls === 'v') continue;
+          const color = COLOR[cls];
+          if (!color) continue;
+          ctx.fillStyle = color;
+          ctx.fillText(ch, x * CHAR_W, y * CHAR_H);
         }
-        flush();
-        out[y] = line;
       }
-      el.innerHTML = out.join('\n');
     }
 
     function step() {
@@ -1566,6 +1573,8 @@
     }
 
     function resize() {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
       cols = Math.ceil(window.innerWidth  / CHAR_W) + 2;
       rows = Math.ceil(window.innerHeight / CHAR_H) + 2;
       generate();
@@ -1573,11 +1582,11 @@
     }
 
     function regenerateCycle() {
-      el.style.opacity = '0';
+      canvas.style.opacity = '0';
       setTimeout(() => {
         generate();
         render();
-        el.style.opacity = '';
+        canvas.style.opacity = '';
       }, 2400);
     }
 
@@ -1588,8 +1597,8 @@
       rt = setTimeout(resize, 250);
     });
 
-    setInterval(step, 360);
-    setInterval(regenerateCycle, 26000);
+    _stepInterval  = setInterval(step, 360);
+    _regenInterval = setInterval(regenerateCycle, 26000);
   })();
 
 </script>
